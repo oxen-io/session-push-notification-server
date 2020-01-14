@@ -8,7 +8,7 @@ SUCCESS = 'Success'
 FAIL = 'Fail'
 
 TOKEN_DB = 'token_db'
-# CERT_FILE = 'cert.pem'
-CERT_FILE = 'cert_dev.pem'
+CERT_FILE = 'cert.pem'
+# CERT_FILE = 'cert_dev.pem'
 
 BUNDLE_ID = 'com.loki-project.loki-messenger'
