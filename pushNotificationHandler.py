@@ -79,5 +79,12 @@ class SilentPushNotificationHelper:
                             self.logger.warning("Push fail", reason, info)
                         else:
                             self.logger.warning("Push fail for unknown reason")
+                            # If push fails with unknown reason, just delete the token
+                            # TODO: Test to see if this is correct
+                            self.tokens.remove(token)
+                            with open(TOKEN_DB, 'w') as token_db:
+                                token_db.write(json.dumps(self.tokens))
+                            token_db.close()
+
 
 
