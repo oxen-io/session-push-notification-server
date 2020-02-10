@@ -7,17 +7,25 @@ from PyAPNs.apns2.payload import Payload
 
 class SilentPushNotificationHelper:
     def __init__(self):
-        self.apns = APNsClient(CERT_FILE, use_sandbox=True, use_alternative_port=False)
+        self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=True)
+        # self.apns = APNsClient(CERT_FILE, use_sandbox=True, use_alternative_port=False)
         self.thread = Thread(target=self.run_tasks)
         self.tokens = []
+        self.push_fails = {}
         self.stop_running = False
         self.logger = logging.getLogger()
         self.log_config()
+        self.load_tokens()
+
+    def load_tokens(self):
         # TODO: Setup a DB?
         if os.path.isfile(TOKEN_DB):
             with open(TOKEN_DB, 'r') as token_db:
                 self.tokens = list(json.load(token_db))
             token_db.close()
+
+        for token in self.tokens:
+            self.push_fails[token] = 0
 
     def log_config(self):
         self.logger.setLevel(logging.INFO)
@@ -32,6 +40,7 @@ class SilentPushNotificationHelper:
         if token in self.tokens:
             return
         self.tokens.append(token)
+        self.push_fails[token] = 0
         with open(TOKEN_DB, 'w') as token_db:
             token_db.write(json.dumps(self.tokens))
         token_db.close()
@@ -52,39 +61,61 @@ class SilentPushNotificationHelper:
         self.logger.info('Stop running...')
         self.stop_running = True
 
+    def handle_fail_result(self, token, result):
+        if token in self.push_fails.keys():
+            self.push_fails[token] += 1
+        else:
+            self.push_fails[token] = 1
+
+        if self.push_fails[token] > 5:
+            if token in self.tokens:
+                self.tokens.remove(token)
+                with open(TOKEN_DB, 'w') as token_db:
+                    token_db.write(json.dumps(self.tokens))
+                token_db.close()
+            del self.push_fails[token]
+        if isinstance(result, tuple):
+            reason, info = result
+            self.logger.warning("Push fail " + reason + ' ' + info + ' ' + token)
+        else:
+            self.logger.warning("Push fail for unknown reason " + token)
+
+    def execute_push(self, tokens, payload, retry):
+        retry_queue = []
+        for token in tokens:
+            self.logger.info('PUSH NOTIFICATION TO ' + token + " RETRY: " + str(retry))
+            stream_id = self.apns.send_notification_async(token, payload,
+                                                          topic=BUNDLE_ID,
+                                                          priority=NotificationPriority.Delayed,
+                                                          push_type=NotificationType.Background)
+            result = self.apns.get_notification_result(stream_id)
+            if result != 'Success':
+                retry_queue.append(token)
+                self.handle_fail_result(token, result)
+            else:
+                self.push_fails[token] = 0
+        return retry_queue
+
     async def send_push_notification(self):
         self.logger.info('Start to push')
+        payload = Payload(content_available=True)
+        retry_queue = []
         while True:
-            # random_sleep_time = random.randint(600, 1800)
             random_sleep_time = random.randint(60, 180)
-            self.logger.info('send sleep at ' + time.asctime(time.localtime(time.time())) + ' for ' + str(random_sleep_time))
+            self.logger.info('sleep for ' + str(random_sleep_time))
             for i in range(random_sleep_time):
                 await asyncio.sleep(1)
+                if random_sleep_time > 120 and i == 60:
+                    self.logger.info('retry run at ' + time.asctime(time.localtime(time.time())) +
+                                     ' for ' + str(len(retry_queue)) + ' tokens')
+                    self.execute_push(retry_queue, payload, True)
                 if self.stop_running:
                     return
-            self.logger.info('send run at ' + time.asctime(time.localtime(time.time())))
-            if len(self.tokens) > 0:
-                # payload = Payload(alert="Ryan Test", sound="default", badge=1)
-                payload = Payload(content_available=True)
-                for token in self.tokens:
-                    self.logger.info('PUSH NOTIFICATION TO ' + token)
-                    stream_id = self.apns.send_notification_async(token, payload,
-                                                                  topic=BUNDLE_ID,
-                                                                  priority=NotificationPriority.Delayed,
-                                                                  push_type=NotificationType.Background)
-                    result = self.apns.get_notification_result(stream_id)
-                    if result != 'Success':
-                        if isinstance(result, tuple):
-                            reason, info = result
-                            self.logger.warning("Push fail", reason, info)
-                        else:
-                            self.logger.warning("Push fail for unknown reason")
-                            # If push fails with unknown reason, just delete the token
-                            # TODO: Test to see if this is correct
-                            self.tokens.remove(token)
-                            with open(TOKEN_DB, 'w') as token_db:
-                                token_db.write(json.dumps(self.tokens))
-                            token_db.close()
+            self.logger.info('push run at ' + time.asctime(time.localtime(time.time())))
+            retry_queue = self.execute_push(self.tokens, payload, False)
+
+
+
 
 
 
