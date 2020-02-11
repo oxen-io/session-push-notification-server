@@ -1,3 +1,4 @@
+from logging.handlers import TimedRotatingFileHandler
 from const import *
 import os.path, asyncio, random, time, json, logging
 from threading import Thread
@@ -8,7 +9,6 @@ from PyAPNs.apns2.payload import Payload
 class SilentPushNotificationHelper:
     def __init__(self):
         self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=True)
-        # self.apns = APNsClient(CERT_FILE, use_sandbox=True, use_alternative_port=False)
         self.thread = Thread(target=self.run_tasks)
         self.tokens = []
         self.push_fails = {}
@@ -31,7 +31,8 @@ class SilentPushNotificationHelper:
         self.logger.setLevel(logging.INFO)
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.DEBUG)
-        file_handler = logging.FileHandler(str(int(time.time())) + '_push.log')
+        file_handler = TimedRotatingFileHandler('apns.log', 'midnight', 1, 0)
+        file_handler.suffix = '%Y%m%d'
         self.logger.addHandler(console_handler)
         self.logger.addHandler(file_handler)
 
