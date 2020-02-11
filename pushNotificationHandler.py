@@ -4,6 +4,7 @@ import os.path, asyncio, random, time, json, logging
 from threading import Thread
 from PyAPNs.apns2.client import APNsClient, NotificationPriority, NotificationType
 from PyAPNs.apns2.payload import Payload
+from PyAPNs.apns2.errors import *
 
 
 class SilentPushNotificationHelper:
@@ -85,16 +86,24 @@ class SilentPushNotificationHelper:
         retry_queue = []
         for token in tokens:
             self.logger.info('PUSH NOTIFICATION TO ' + token + " RETRY: " + str(retry))
-            stream_id = self.apns.send_notification_async(token, payload,
-                                                          topic=BUNDLE_ID,
-                                                          priority=NotificationPriority.Delayed,
-                                                          push_type=NotificationType.Background)
-            result = self.apns.get_notification_result(stream_id)
-            if result != 'Success':
-                retry_queue.append(token)
-                self.handle_fail_result(token, result)
-            else:
-                self.push_fails[token] = 0
+            try:
+                stream_id = self.apns.send_notification_async(token, payload,
+                                                              topic=BUNDLE_ID,
+                                                              priority=NotificationPriority.Delayed,
+                                                              push_type=NotificationType.Background)
+                result = self.apns.get_notification_result(stream_id)
+                if result != 'Success':
+                    retry_queue.append(token)
+                    self.handle_fail_result(token, result)
+                else:
+                    self.push_fails[token] = 0
+            except ConnectionFailed:
+                self.logger.error('Connection failed')
+                self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=True)
+            except Exception as e:
+                self.logger.exception(e)
+                self.apns.connect()
+                
         return retry_queue
 
     async def send_push_notification(self):
@@ -114,9 +123,3 @@ class SilentPushNotificationHelper:
                     return
             self.logger.info('push run at ' + time.asctime(time.localtime(time.time())))
             retry_queue = self.execute_push(self.tokens, payload, False)
-
-
-
-
-
-
