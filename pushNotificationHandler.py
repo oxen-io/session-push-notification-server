@@ -82,10 +82,9 @@ class SilentPushNotificationHelper:
         else:
             self.logger.warning("Push fail for unknown reason " + token)
 
-    def execute_push(self, tokens, payload, retry):
+    def execute_push(self, tokens, payload):
         retry_queue = []
         for token in tokens:
-            self.logger.info('PUSH NOTIFICATION TO ' + token + " RETRY: " + str(retry))
             try:
                 stream_id = self.apns.send_notification_async(token, payload,
                                                               topic=BUNDLE_ID,
@@ -118,8 +117,9 @@ class SilentPushNotificationHelper:
                 if random_sleep_time > 120 and i == 60:
                     self.logger.info('retry run at ' + time.asctime(time.localtime(time.time())) +
                                      ' for ' + str(len(retry_queue)) + ' tokens')
-                    self.execute_push(retry_queue, payload, True)
+                    self.execute_push(retry_queue, payload)
                 if self.stop_running:
                     return
-            self.logger.info('push run at ' + time.asctime(time.localtime(time.time())))
-            retry_queue = self.execute_push(self.tokens, payload, False)
+            self.logger.info('push run at ' + time.asctime(time.localtime(time.time())) +
+                             ' for ' + str(len(self.tokens)) + ' tokens')
+            retry_queue = self.execute_push(self.tokens, payload)
