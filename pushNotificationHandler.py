@@ -83,6 +83,9 @@ class SilentPushNotificationHelper:
             self.logger.warning("Push fail for unknown reason " + token)
 
     def execute_push(self, tokens, payload):
+        if len(tokens) == 0:
+            return []
+
         retry_queue = []
         notifications = []
         results = {}
@@ -91,13 +94,13 @@ class SilentPushNotificationHelper:
         try:
             results = self.apns.send_notification_batch(notifications=notifications,
                                                         topic=BUNDLE_ID,
-                                                        priority=NotificationPriority.Delayed,
-                                                        push_type=NotificationType.Background)
+                                                        priority=NotificationPriority.Delayed)
         except ConnectionFailed:
             self.logger.error('Connection failed')
             self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
         except Exception as e:
             self.logger.exception(e)
+            self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
 
         for token, result in results.items():
             if result != 'Success':
