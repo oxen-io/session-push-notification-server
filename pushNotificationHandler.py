@@ -1,15 +1,15 @@
 from logging.handlers import TimedRotatingFileHandler
 from const import *
-import os.path, asyncio, random, time, json, logging
+import os.path, asyncio, random, time, json, logging, collections
 from threading import Thread
-from PyAPNs.apns2.client import APNsClient, NotificationPriority, NotificationType
+from PyAPNs.apns2.client import APNsClient, NotificationPriority, NotificationType, Notification
 from PyAPNs.apns2.payload import Payload
 from PyAPNs.apns2.errors import *
 
 
 class SilentPushNotificationHelper:
     def __init__(self):
-        self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=True)
+        self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
         self.thread = Thread(target=self.run_tasks)
         self.tokens = []
         self.push_fails = {}
@@ -84,25 +84,28 @@ class SilentPushNotificationHelper:
 
     def execute_push(self, tokens, payload):
         retry_queue = []
+        notifications = []
+        results = {}
         for token in tokens:
-            try:
-                stream_id = self.apns.send_notification_async(token, payload,
-                                                              topic=BUNDLE_ID,
-                                                              priority=NotificationPriority.Delayed,
-                                                              push_type=NotificationType.Background)
-                result = self.apns.get_notification_result(stream_id)
-                if result != 'Success':
-                    retry_queue.append(token)
-                    self.handle_fail_result(token, result)
-                else:
-                    self.push_fails[token] = 0
-            except ConnectionFailed:
-                self.logger.error('Connection failed')
-                self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=True)
-            except Exception as e:
-                self.logger.exception(e)
-                self.apns.connect()
-                
+            notifications.append(Notification(payload=payload, token=token))
+        try:
+            results = self.apns.send_notification_batch(notifications=notifications,
+                                                        topic=BUNDLE_ID,
+                                                        priority=NotificationPriority.Delayed,
+                                                        push_type=NotificationType.Background)
+        except ConnectionFailed:
+            self.logger.error('Connection failed')
+            self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
+        except Exception as e:
+            self.logger.exception(e)
+
+        for token, result in results.items():
+            if result != 'Success':
+                retry_queue.append(token)
+                self.handle_fail_result(token, result)
+            else:
+                self.push_fails[token] = 0
+
         return retry_queue
 
     async def send_push_notification(self):

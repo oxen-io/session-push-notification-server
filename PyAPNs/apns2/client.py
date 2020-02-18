@@ -194,7 +194,7 @@ class APNsClient(object):
             # sent by the server at any time.
             self.update_max_concurrent_streams()
             if next_notification is not None and len(open_streams) < self.__max_concurrent_streams:
-                logger.info('Sending to token %s', next_notification.token)
+                # logger.info('Sending to token %s', next_notification.token)
                 stream_id = self.send_notification_async(next_notification.token, next_notification.payload, topic,
                                                          priority, expiration, collapse_id, push_type)
                 open_streams.append(RequestStream(stream_id, next_notification.token))
@@ -209,7 +209,7 @@ class APNsClient(object):
                 # to return a response.
                 pending_stream = open_streams.popleft()
                 result = self.get_notification_result(pending_stream.stream_id)
-                logger.info('Got response for %s: %s', pending_stream.token, result)
+                # logger.info('Got response for %s: %s', pending_stream.token, result)
                 results[pending_stream.token] = result
 
         return results
