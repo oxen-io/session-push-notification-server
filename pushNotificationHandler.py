@@ -1,17 +1,17 @@
 from logging.handlers import TimedRotatingFileHandler
 from const import *
-import os.path, asyncio, random, time, json, logging, collections
+import os.path, asyncio, random, time, json, logging
 from threading import Thread
-from PyAPNs.apns2.client import APNsClient, NotificationPriority, NotificationType, Notification
+from PyAPNs.apns2.client import APNsClient, NotificationPriority, Notification
 from PyAPNs.apns2.payload import Payload
 from PyAPNs.apns2.errors import *
+from lokiAPI import LokiAPI
 
 
-class SilentPushNotificationHelper:
+class PushNotificationHelper:
     def __init__(self):
         self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
         self.thread = Thread(target=self.run_tasks)
-        self.tokens = []
         self.push_fails = {}
         self.stop_running = False
         self.logger = logging.getLogger()
@@ -20,13 +20,7 @@ class SilentPushNotificationHelper:
 
     def load_tokens(self):
         # TODO: Setup a DB?
-        if os.path.isfile(TOKEN_DB):
-            with open(TOKEN_DB, 'r') as token_db:
-                self.tokens = list(json.load(token_db))
-            token_db.close()
-
-        for token in self.tokens:
-            self.push_fails[token] = 0
+        pass
 
     def log_config(self):
         self.logger.setLevel(logging.INFO)
@@ -36,6 +30,80 @@ class SilentPushNotificationHelper:
         file_handler.suffix = '%Y%m%d'
         self.logger.addHandler(console_handler)
         self.logger.addHandler(file_handler)
+
+    async def send_push_notification(self):
+        pass
+
+    async def create_tasks(self):
+        task = asyncio.create_task(self.send_push_notification())
+        await task
+
+    def run_tasks(self):
+        asyncio.run(self.create_tasks())
+
+    def execute_push(self, notifications, priority):
+        if len(notifications) == 0:
+            return []
+
+        results = {}
+        try:
+            results = self.apns.send_notification_batch(notifications=notifications,
+                                                        topic=BUNDLE_ID,
+                                                        priority=priority)
+        except ConnectionFailed:
+            self.logger.error('Connection failed')
+            self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
+        except Exception as e:
+            self.logger.exception(e)
+            self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
+
+        for token, result in results.items():
+            if result != 'Success':
+                self.handle_fail_result(token, result)
+            else:
+                self.push_fails[token] = 0
+
+    def run(self):
+        self.logger.info(self.__class__.__name__ + ' start running...')
+        self.stop_running = False
+        self.thread.start()
+
+    def stop(self):
+        self.logger.info(self.__class__.__name__ + 'stop running...')
+        self.stop_running = True
+
+    def handle_fail_result(self, key, result):
+        if key in self.push_fails.keys():
+            self.push_fails[key] += 1
+        else:
+            self.push_fails[key] = 1
+
+        if self.push_fails[key] > 5:
+            self.remove_invalid_key(key)
+            del self.push_fails[key]
+        if isinstance(result, tuple):
+            reason, info = result
+            self.logger.warning("Push fail " + reason + ' ' + info)
+        else:
+            self.logger.warning("Push fail for unknown reason")
+
+    def remove_invalid_key(self, key):
+        pass
+
+
+class SilentPushNotificationHelper(PushNotificationHelper):
+    def __init__(self):
+        self.tokens = []
+        super().__init__()
+
+    def load_tokens(self):
+        if os.path.isfile(TOKEN_DB):
+            with open(TOKEN_DB, 'r') as token_db:
+                self.tokens = list(json.load(token_db))
+            token_db.close()
+
+        for token in self.tokens:
+            self.push_fails[token] = 0
 
     def update_token(self, token):
         self.logger.info('update token ' + token)
@@ -47,85 +115,86 @@ class SilentPushNotificationHelper:
             token_db.write(json.dumps(self.tokens))
         token_db.close()
 
-    async def create_tasks(self):
-        task = asyncio.create_task(self.send_push_notification())
-        await task
-
-    def run_tasks(self):
-        asyncio.run(self.create_tasks())
-
-    def run(self):
-        self.logger.info('Start running...')
-        self.stop_running = False
-        self.thread.start()
-
-    def stop(self):
-        self.logger.info('Stop running...')
-        self.stop_running = True
-
-    def handle_fail_result(self, token, result):
-        if token in self.push_fails.keys():
-            self.push_fails[token] += 1
-        else:
-            self.push_fails[token] = 1
-
-        if self.push_fails[token] > 5:
-            if token in self.tokens:
-                self.tokens.remove(token)
-                with open(TOKEN_DB, 'w') as token_db:
-                    token_db.write(json.dumps(self.tokens))
-                token_db.close()
-            del self.push_fails[token]
-        if isinstance(result, tuple):
-            reason, info = result
-            self.logger.warning("Push fail " + reason + ' ' + info + ' ' + token)
-        else:
-            self.logger.warning("Push fail for unknown reason " + token)
-
-    def execute_push(self, tokens, payload):
-        if len(tokens) == 0:
-            return []
-
-        retry_queue = []
-        notifications = []
-        results = {}
-        for token in tokens:
-            notifications.append(Notification(payload=payload, token=token))
-        try:
-            results = self.apns.send_notification_batch(notifications=notifications,
-                                                        topic=BUNDLE_ID,
-                                                        priority=NotificationPriority.Delayed)
-        except ConnectionFailed:
-            self.logger.error('Connection failed')
-            self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
-        except Exception as e:
-            self.logger.exception(e)
-            self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
-
-        for token, result in results.items():
-            if result != 'Success':
-                retry_queue.append(token)
-                self.handle_fail_result(token, result)
-            else:
-                self.push_fails[token] = 0
-
-        return retry_queue
+    def remove_invalid_token(self, token):
+        if token in self.tokens:
+            self.tokens.remove(token)
+            with open(TOKEN_DB, 'w') as token_db:
+                token_db.write(json.dumps(self.tokens))
+            token_db.close()
 
     async def send_push_notification(self):
         self.logger.info('Start to push')
         payload = Payload(content_available=True)
-        retry_queue = []
         while True:
             random_sleep_time = random.randint(60, 180)
             self.logger.info('sleep for ' + str(random_sleep_time))
             for i in range(random_sleep_time):
                 await asyncio.sleep(1)
-                if random_sleep_time > 120 and i == 60:
-                    self.logger.info('retry run at ' + time.asctime(time.localtime(time.time())) +
-                                     ' for ' + str(len(retry_queue)) + ' tokens')
-                    self.execute_push(retry_queue, payload)
                 if self.stop_running:
                     return
             self.logger.info('push run at ' + time.asctime(time.localtime(time.time())) +
                              ' for ' + str(len(self.tokens)) + ' tokens')
-            retry_queue = self.execute_push(self.tokens, payload)
+            notifications = []
+            for token in self.tokens:
+                notifications.append(Notification(payload=payload, token=token))
+            self.execute_push(notifications, NotificationPriority.Delayed)
+
+
+class NormalPushNotificationHelper(PushNotificationHelper):
+    def __init__(self):
+        self.pubkey_token_dict = {}
+        super().__init__()
+        self.api = LokiAPI()
+
+    def load_tokens(self):
+        if os.path.isfile(PUBKEY_TOKEN_DB):
+            with open(PUBKEY_TOKEN_DB, 'r') as pubkey_token_db:
+                self.pubkey_token_dict = dict(json.load(pubkey_token_db))
+            pubkey_token_db.close()
+
+        for pubkey in self.pubkey_token_dict.keys():
+            self.push_fails[pubkey] = 0
+
+    def update_token_pubkey_pair(self, token, pubkey):
+        self.logger.info('update token pubkey pairs (' + token + ', ' + pubkey + ')')
+        """
+        # if (pubkey, token) already in dict, return
+        # if (pubkey, v) in dict, do nothing, v will be updated to token after the loop
+        # if (k, token) in dict, it means the pubkey for a certain device token has changed, 
+          (k, token) should be deleted from the dict. The new (pubkey, token) will be set after the loop.
+        """
+        for k, v in self.pubkey_token_dict.items():
+            if k == pubkey and v == token:
+                return
+            if v == token:
+                self.pubkey_token_dict.pop(k)
+
+        self.pubkey_token_dict[pubkey] = token
+        self.push_fails[pubkey] = 0
+        with open(PUBKEY_TOKEN_DB, 'w') as pubkey_token_db:
+            pubkey_token_db.write(json.dumps(self.pubkey_token_dict))
+        pubkey_token_db.close()
+
+    def remove_invalid_key(self, key):
+        if key in self.pubkey_token_dict.keys():
+            self.pubkey_token_dict.pop(key)
+            with open(PUBKEY_TOKEN_DB, 'w') as pubkey_token_db:
+                pubkey_token_db.write(json.dumps(self.pubkey_token_dict))
+            pubkey_token_db.close()
+
+    async def fetch_messages(self):
+        self.logger.info('fetch run at ' + time.asctime(time.localtime(time.time())) +
+                         ' for ' + str(len(self.pubkey_token_dict.keys())) + ' pubkeys')
+        return self.api.fetch_raw_messages(self.pubkey_token_dict.keys())
+
+    async def send_push_notification(self):
+        self.logger.info('Start to fetch and push')
+        while not self.stop_running:
+            notifications = []
+            raw_messages = await self.fetch_messages()
+            for pubkey, message in raw_messages:
+                payload = Payload(alert='ENCRYPTED MESSAGE', badge=1, sound="default",
+                                  mutable_content=True, category="SECRET",
+                                  custom={'ENCRYPTED_DATA': message})
+                notifications.append(Notification(token=self.pubkey_token_dict[pubkey], payload=payload))
+            self.execute_push(notifications, NotificationPriority.Immediate)
