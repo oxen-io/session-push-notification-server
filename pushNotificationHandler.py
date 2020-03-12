@@ -79,7 +79,7 @@ class PushNotificationHelper:
             self.push_fails[key] = 1
 
         if self.push_fails[key] > 5:
-            self.remove_invalid_key(key)
+            self.remove_invalid_token(key)
             del self.push_fails[key]
         if isinstance(result, tuple):
             reason, info = result
@@ -87,7 +87,7 @@ class PushNotificationHelper:
         else:
             self.logger.warning("Push fail for unknown reason")
 
-    def remove_invalid_key(self, key):
+    def remove_invalid_token(self, token):
         pass
 
 
@@ -174,10 +174,10 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             pubkey_token_db.write(json.dumps(self.pubkey_token_dict))
         pubkey_token_db.close()
 
-    def remove_invalid_key(self, key):
+    def remove_invalid_token(self, token):
         for pubkey, tokens in self.pubkey_token_dict.items():
-            if key in tokens:
-                self.pubkey_token_dict[pubkey].remove(key)
+            if token in tokens:
+                self.pubkey_token_dict[pubkey].remove(token)
                 break
             with open(PUBKEY_TOKEN_DB, 'w') as pubkey_token_db:
                 pubkey_token_db.write(json.dumps(self.pubkey_token_dict))
