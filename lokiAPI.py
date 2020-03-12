@@ -59,7 +59,7 @@ class LokiSnodeProxy:
                 plain_text = unpad(cipher.decrypt(cipher_bytes), AES.block_size)
                 result = json.loads(plain_text.decode())
             except Exception as e:
-                print(e)
+                print('parse error')
         return result
 
 
@@ -136,7 +136,7 @@ class LokiAPI:
         random.shuffle(self.swarm_cache[pubkey])
         return self.swarm_cache[pubkey][:3]
 
-    def get_raw_messages(self, pubkey):
+    def get_raw_messages(self, pubkey, last_hash):
         target_snodes = self.get_target_snodes(pubkey)
         proxies = []
         requests = []
@@ -145,28 +145,31 @@ class LokiAPI:
             parameters = {'method': 'retrieve',
                           'params': {
                               'pubKey': pubkey,
-                              'lastHash': ''
+                              'lastHash': last_hash
                           }}
             proxy = LokiSnodeProxy(target_snode, self)
             proxies.append(proxy)
             requests.append(proxy.request_with_proxy(parameters))
         return proxies, requests
 
-    def fetch_raw_messages(self, pubkey_list):
+    def fetch_raw_messages(self, pubkey_list, last_hash):
         proxies = []
         requests = []
         messages = {}
         for pubkey in pubkey_list:
             messages[pubkey] = []
-            prx, req = self.get_raw_messages(pubkey)
+            prx, req = self.get_raw_messages(pubkey, last_hash[pubkey])
             proxies += prx
             requests += req
         response = grequests.map(requests)
         proxy_index = 0
         for res in response:
-            message_json = json.loads(proxies[proxy_index].parse_response(res)['body'])
+            data = proxies[proxy_index].parse_response(res)
             pubkey_index = proxy_index // 3
             proxy_index += 1
+            if data is None:
+                continue
+            message_json = json.loads(data['body'])
             for message in message_json['messages']:
                 if message not in messages[pubkey_list[pubkey_index]]:
                     messages[pubkey_list[pubkey_index]].append(message)

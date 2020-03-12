@@ -1,10 +1,11 @@
 from const import *
-import os.path, asyncio, random, time, json
+import os.path, asyncio, random, time, pickle, json
 from threading import Thread
 from PyAPNs.apns2.client import APNsClient, NotificationPriority, Notification
-from PyAPNs.apns2.payload import Payload
+from PyAPNs.apns2.payload import Payload, PayloadAlert
 from PyAPNs.apns2.errors import *
 from lokiAPI import LokiAPI
+from base64 import b64decode
 
 
 class PushNotificationHelper:
@@ -87,8 +88,8 @@ class SilentPushNotificationHelper(PushNotificationHelper):
 
     def load_tokens(self):
         if os.path.isfile(TOKEN_DB):
-            with open(TOKEN_DB, 'r') as token_db:
-                self.tokens = list(json.load(token_db))
+            with open(TOKEN_DB, 'rb') as token_db:
+                self.tokens = list(pickle.load(token_db))
             token_db.close()
 
         for token in self.tokens:
@@ -100,15 +101,15 @@ class SilentPushNotificationHelper(PushNotificationHelper):
             return
         self.tokens.append(token)
         self.push_fails[token] = 0
-        with open(TOKEN_DB, 'w') as token_db:
-            token_db.write(json.dumps(self.tokens))
+        with open(TOKEN_DB, 'wb') as token_db:
+            pickle.dump(self.tokens, token_db)
         token_db.close()
 
     def remove_invalid_token(self, token):
         if token in self.tokens:
             self.tokens.remove(token)
-            with open(TOKEN_DB, 'w') as token_db:
-                token_db.write(json.dumps(self.tokens))
+            with open(TOKEN_DB, 'wb') as token_db:
+                pickle.dump(self.tokens, token_db)
             token_db.close()
 
     async def send_push_notification(self):
@@ -131,24 +132,29 @@ class SilentPushNotificationHelper(PushNotificationHelper):
 
 class NormalPushNotificationHelper(PushNotificationHelper):
     def __init__(self, logger):
-        self.pubkey_token_dict = {}
-        super().__init__(logger)
         self.api = LokiAPI()
+        self.pubkey_token_dict = {}
+        self.last_hash = {}
+        super().__init__(logger)
 
     def load_tokens(self):
         if os.path.isfile(PUBKEY_TOKEN_DB):
-            with open(PUBKEY_TOKEN_DB, 'r') as pubkey_token_db:
-                self.pubkey_token_dict = dict(json.load(pubkey_token_db))
+            with open(PUBKEY_TOKEN_DB, 'rb') as pubkey_token_db:
+                self.pubkey_token_dict = dict(pickle.load(pubkey_token_db))
             pubkey_token_db.close()
 
         for tokens in self.pubkey_token_dict.values():
             for token in tokens:
                 self.push_fails[token] = 0
 
+        for pubkey in self.pubkey_token_dict.keys():
+            self.last_hash[pubkey] = ''
+
     def update_token_pubkey_pair(self, token, pubkey):
         self.logger.info('update token pubkey pairs (' + token + ', ' + pubkey + ')')
         if pubkey not in self.pubkey_token_dict.keys():
             self.pubkey_token_dict[pubkey] = set()
+            self.api.get_swarm(pubkey)
         else:
             for key, tokens in self.pubkey_token_dict.items():
                 if key == pubkey and token in tokens:
@@ -159,8 +165,9 @@ class NormalPushNotificationHelper(PushNotificationHelper):
 
         self.pubkey_token_dict[pubkey].add(token)
         self.push_fails[token] = 0
-        with open(PUBKEY_TOKEN_DB, 'w') as pubkey_token_db:
-            pubkey_token_db.write(json.dumps(self.pubkey_token_dict))
+        self.last_hash[pubkey] = ''
+        with open(PUBKEY_TOKEN_DB, 'wb') as pubkey_token_db:
+            pickle.dump(self.pubkey_token_dict, pubkey_token_db)
         pubkey_token_db.close()
 
     def remove_invalid_token(self, token):
@@ -168,14 +175,14 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             if token in tokens:
                 self.pubkey_token_dict[pubkey].remove(token)
                 break
-            with open(PUBKEY_TOKEN_DB, 'w') as pubkey_token_db:
-                pubkey_token_db.write(json.dumps(self.pubkey_token_dict))
+            with open(PUBKEY_TOKEN_DB, 'wb') as pubkey_token_db:
+                pickle.dump(self.pubkey_token_dict, pubkey_token_db)
             pubkey_token_db.close()
 
     async def fetch_messages(self):
         self.logger.info('fetch run at ' + time.asctime(time.localtime(time.time())) +
                          ' for ' + str(len(self.pubkey_token_dict.keys())) + ' pubkeys')
-        return self.api.fetch_raw_messages(self.pubkey_token_dict.keys())
+        return self.api.fetch_raw_messages(list(self.pubkey_token_dict.keys()), self.last_hash)
 
     async def send_push_notification(self):
         self.logger.info('Start to fetch and push')
@@ -183,6 +190,21 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             notifications = []
             start_fetching_time = int(round(time.time()))
             raw_messages = await self.fetch_messages()
+            for pubkey, messages in raw_messages.items():
+                if len(messages) == 0:
+                    continue
+                last_hash = self.last_hash[pubkey]
+                self.last_hash[pubkey] = messages[len(messages) - 1]['hash']
+                if len(last_hash) == 0:
+                    continue
+                for message in messages:
+                    alert = PayloadAlert(title='ENCRYPTED MESSAGE', body=json.dumps(message['data']))
+                    payload = Payload(alert=alert, badge=1, sound="default",
+                                      mutable_content=True, category="SECRET",
+                                      custom={'ENCRYPTED_DATA': message})
+                    for token in self.pubkey_token_dict[pubkey]:
+                        notifications.append(Notification(token=token, payload=payload))
+            self.execute_push(notifications, NotificationPriority.Immediate)
             fetching_time = int(round(time.time())) - start_fetching_time
             waiting_time = 60 - fetching_time
             if waiting_time < 0:
@@ -192,11 +214,3 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                     await asyncio.sleep(1)
                     if self.stop_running:
                         return
-            for pubkey, messages in raw_messages:
-                for message in messages:
-                    payload = Payload(alert='ENCRYPTED MESSAGE', badge=1, sound="default",
-                                      mutable_content=True, category="SECRET",
-                                      custom={'ENCRYPTED_DATA': message})
-                    for token in self.pubkey_token_dict[pubkey]:
-                        notifications.append(Notification(token=token, payload=payload))
-            self.execute_push(notifications, NotificationPriority.Immediate)
