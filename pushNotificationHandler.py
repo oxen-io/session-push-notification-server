@@ -1,6 +1,5 @@
-from logging.handlers import TimedRotatingFileHandler
 from const import *
-import os.path, asyncio, random, time, json, logging
+import os.path, asyncio, random, time, json
 from threading import Thread
 from PyAPNs.apns2.client import APNsClient, NotificationPriority, Notification
 from PyAPNs.apns2.payload import Payload
@@ -9,27 +8,17 @@ from lokiAPI import LokiAPI
 
 
 class PushNotificationHelper:
-    def __init__(self):
+    def __init__(self, logger):
         self.apns = APNsClient(CERT_FILE, use_sandbox=debug_mode, use_alternative_port=False)
         self.thread = Thread(target=self.run_tasks)
         self.push_fails = {}
+        self.logger = logger
         self.stop_running = False
-        self.logger = logging.getLogger()
-        self.log_config()
         self.load_tokens()
 
     def load_tokens(self):
         # TODO: Setup a DB?
         pass
-
-    def log_config(self):
-        self.logger.setLevel(logging.INFO)
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.DEBUG)
-        file_handler = TimedRotatingFileHandler('apns.log', 'midnight', 1, 0)
-        file_handler.suffix = '%Y%m%d'
-        self.logger.addHandler(console_handler)
-        self.logger.addHandler(file_handler)
 
     async def send_push_notification(self):
         pass
@@ -92,9 +81,9 @@ class PushNotificationHelper:
 
 
 class SilentPushNotificationHelper(PushNotificationHelper):
-    def __init__(self):
+    def __init__(self, logger):
         self.tokens = []
-        super().__init__()
+        super().__init__(logger)
 
     def load_tokens(self):
         if os.path.isfile(TOKEN_DB):
@@ -141,9 +130,9 @@ class SilentPushNotificationHelper(PushNotificationHelper):
 
 
 class NormalPushNotificationHelper(PushNotificationHelper):
-    def __init__(self):
+    def __init__(self, logger):
         self.pubkey_token_dict = {}
-        super().__init__()
+        super().__init__(logger)
         self.api = LokiAPI()
 
     def load_tokens(self):

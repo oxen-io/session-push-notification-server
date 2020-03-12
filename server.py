@@ -2,10 +2,12 @@ from flask import Flask, request, jsonify
 from pushNotificationHandler import SilentPushNotificationHelper, NormalPushNotificationHelper
 from const import *
 from gevent.pywsgi import WSGIServer
+from lokiLogger import LokiLogger
 
 app = Flask(__name__)
-SPN_helper = SilentPushNotificationHelper()
-NPN_helper = NormalPushNotificationHelper()
+logger = LokiLogger().logger
+SPN_helper = SilentPushNotificationHelper(logger)
+NPN_helper = NormalPushNotificationHelper(logger)
 
 
 @app.route('/register', methods=[GET, POST])

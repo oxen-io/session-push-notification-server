@@ -172,7 +172,3 @@ class LokiAPI:
                     messages[pubkey_list[pubkey_index]].append(message)
         return messages
 
-
-if __name__ == '__main__':
-    api = LokiAPI()
-    print(api.fetch_raw_messages(['05f709a0097c590fb867bd99530aedec283eaddb3e81de3fee5e5c83a8b2834179']))
