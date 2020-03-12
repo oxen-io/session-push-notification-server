@@ -194,11 +194,15 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             notifications = []
             start_fetching_time = int(round(time.time()))
             raw_messages = await self.fetch_messages()
-            stop_fetching_time = int(round(time.time()))
-            for i in range(60 - (stop_fetching_time - start_fetching_time)):
-                await asyncio.sleep(1)
-                if self.stop_running:
-                    return
+            fetching_time = int(round(time.time())) - start_fetching_time
+            waiting_time = 60 - fetching_time
+            if waiting_time < 0:
+                self.logger.warning('Fetching messages over 60 seconds')
+            else:
+                for i in range(waiting_time):
+                    await asyncio.sleep(1)
+                    if self.stop_running:
+                        return
             for pubkey, messages in raw_messages:
                 for message in messages:
                     payload = Payload(alert='ENCRYPTED MESSAGE', badge=1, sound="default",
