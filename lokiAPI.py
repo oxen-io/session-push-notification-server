@@ -51,11 +51,11 @@ class LokiSnodeProxy:
     def parse_response(self, res):
         result = None
         if res:
-            cipher_text = bytearray(b64decode(res.content))
-            iv_bytes = cipher_text[:16]
-            cipher_bytes = cipher_text[16:]
-            cipher = AES.new(self.symmetric_key, AES.MODE_CBC, iv=iv_bytes)
             try:
+                cipher_text = bytearray(b64decode(res.content))
+                iv_bytes = cipher_text[:16]
+                cipher_bytes = cipher_text[16:]
+                cipher = AES.new(self.symmetric_key, AES.MODE_CBC, iv=iv_bytes)
                 plain_text = unpad(cipher.decrypt(cipher_bytes), AES.block_size)
                 result = json.loads(plain_text.decode())
             except Exception as e:
