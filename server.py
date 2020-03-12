@@ -20,17 +20,17 @@ def register():
     if TOKEN in request.args:
         token = request.args[TOKEN]
         if PUBKEY in request.args:
-            pubkey = request.args[TOKEN]
+            pubkey = request.args[PUBKEY]
 
     if request.json and TOKEN in request.json:
         token = request.json[TOKEN]
         if PUBKEY in request.json:
-            pubkey = request.json[TOKEN]
+            pubkey = request.json[PUBKEY]
 
     if request.form and TOKEN in request.form:
         token = request.form[TOKEN]
         if PUBKEY in request.form:
-            pubkey = request.form[TOKEN]
+            pubkey = request.form[PUBKEY]
 
     if token and pubkey:
         NPN_helper.update_token_pubkey_pair(token, pubkey)
