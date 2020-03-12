@@ -1,6 +1,7 @@
 GET = 'GET'
 POST = 'POST'
 TOKEN = 'token'
+PUBKEY = 'pubKey'
 CODE = 'code'
 MSG = 'message'
 PARA_MISSING = 'Missing parameter'
@@ -20,3 +21,5 @@ maxRandomSnodePoolSize = 1024
 failureThreshold = 2
 apiVersion = 'v1'
 defaultTimeout = 20
+
+debug_mode = True

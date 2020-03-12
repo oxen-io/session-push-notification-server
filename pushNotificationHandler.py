@@ -10,7 +10,7 @@ from lokiAPI import LokiAPI
 
 class PushNotificationHelper:
     def __init__(self):
-        self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
+        self.apns = APNsClient(CERT_FILE, use_sandbox=debug_mode, use_alternative_port=False)
         self.thread = Thread(target=self.run_tasks)
         self.push_fails = {}
         self.stop_running = False
@@ -152,32 +152,33 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 self.pubkey_token_dict = dict(json.load(pubkey_token_db))
             pubkey_token_db.close()
 
-        for pubkey in self.pubkey_token_dict.keys():
-            self.push_fails[pubkey] = 0
+        for tokens in self.pubkey_token_dict.values():
+            for token in tokens:
+                self.push_fails[token] = 0
 
     def update_token_pubkey_pair(self, token, pubkey):
         self.logger.info('update token pubkey pairs (' + token + ', ' + pubkey + ')')
-        """
-        # if (pubkey, token) already in dict, return
-        # if (pubkey, v) in dict, do nothing, v will be updated to token after the loop
-        # if (k, token) in dict, it means the pubkey for a certain device token has changed, 
-          (k, token) should be deleted from the dict. The new (pubkey, token) will be set after the loop.
-        """
-        for k, v in self.pubkey_token_dict.items():
-            if k == pubkey and v == token:
-                return
-            if v == token:
-                self.pubkey_token_dict.pop(k)
+        if pubkey not in self.pubkey_token_dict.keys():
+            self.pubkey_token_dict[pubkey] = set()
+        else:
+            for key, tokens in self.pubkey_token_dict.items():
+                if key == pubkey and token in tokens:
+                    return
+                if token in tokens:
+                    self.pubkey_token_dict.pop(key)
+                    self.pubkey_token_dict[pubkey] = tokens
 
-        self.pubkey_token_dict[pubkey] = token
-        self.push_fails[pubkey] = 0
+        self.pubkey_token_dict[pubkey].add(token)
+        self.push_fails[token] = 0
         with open(PUBKEY_TOKEN_DB, 'w') as pubkey_token_db:
             pubkey_token_db.write(json.dumps(self.pubkey_token_dict))
         pubkey_token_db.close()
 
     def remove_invalid_key(self, key):
-        if key in self.pubkey_token_dict.keys():
-            self.pubkey_token_dict.pop(key)
+        for pubkey, tokens in self.pubkey_token_dict.items():
+            if key in tokens:
+                self.pubkey_token_dict[pubkey].remove(key)
+                break
             with open(PUBKEY_TOKEN_DB, 'w') as pubkey_token_db:
                 pubkey_token_db.write(json.dumps(self.pubkey_token_dict))
             pubkey_token_db.close()
@@ -191,10 +192,18 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.logger.info('Start to fetch and push')
         while not self.stop_running:
             notifications = []
+            start_fetching_time = int(round(time.time()))
             raw_messages = await self.fetch_messages()
-            for pubkey, message in raw_messages:
-                payload = Payload(alert='ENCRYPTED MESSAGE', badge=1, sound="default",
-                                  mutable_content=True, category="SECRET",
-                                  custom={'ENCRYPTED_DATA': message})
-                notifications.append(Notification(token=self.pubkey_token_dict[pubkey], payload=payload))
+            stop_fetching_time = int(round(time.time()))
+            for i in range(60 - (stop_fetching_time - start_fetching_time)):
+                await asyncio.sleep(1)
+                if self.stop_running:
+                    return
+            for pubkey, messages in raw_messages:
+                for message in messages:
+                    payload = Payload(alert='ENCRYPTED MESSAGE', badge=1, sound="default",
+                                      mutable_content=True, category="SECRET",
+                                      custom={'ENCRYPTED_DATA': message})
+                    for token in self.pubkey_token_dict[pubkey]:
+                        notifications.append(Notification(token=token, payload=payload))
             self.execute_push(notifications, NotificationPriority.Immediate)
