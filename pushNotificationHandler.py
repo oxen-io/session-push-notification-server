@@ -216,7 +216,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 body = 'You\'ve got a new message' if message_count == 1 \
                     else 'You\'ve got ' + str(message_count) + ' new messages'
                 alert = PayloadAlert(title='Session', body=body)
-                payload = Payload(alert=alert, badge=message_count, sound="default")
+                payload = Payload(alert=alert, badge=message_count, sound="default",
+                                  custom={'remote': True})
                 for token in self.pubkey_token_dict[pubkey]:
                     notifications.append(Notification(token=token, payload=payload))
             self.execute_push(notifications, NotificationPriority.Immediate)
