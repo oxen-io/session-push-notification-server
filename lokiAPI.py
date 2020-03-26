@@ -76,6 +76,8 @@ class LokiAPI:
         if len(self.random_snode_pool) == 0:
             self.get_random_snode()
 
+        if pubkey not in self.swarm_cache.keys():
+            self.swarm_cache[pubkey] = []
         random_snode = random.choice(self.random_snode_pool)
         url = random_snode.address + ':' + random_snode.port + '/storage_rpc/' + apiVersion
         parameters = {'method': 'get_snodes_for_pubkey',
