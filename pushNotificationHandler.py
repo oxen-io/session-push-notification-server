@@ -193,33 +193,18 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             for pubkey, messages in raw_messages.items():
                 if len(messages) == 0:
                     continue
-                # last_hash = self.last_hash[pubkey]
                 self.last_hash[pubkey] = messages[len(messages) - 1]['hash']
-                # if len(last_hash) == 0:
-                #     continue
-                message_count = 0
                 for message in messages:
                     message_expiration = int(message['expiration'])
                     current_time = int(round(time.time() * 1000))
                     if message_expiration - current_time < 23.8 * 60 * 60 * 1000:
                         continue
-                    message_count += 1
-                    # TODO: Preview of the message
-                    # alert = PayloadAlert(title='Session', body='You\'ve got a new message')
-                    # payload = Payload(alert=alert, badge=1, sound="default",
-                    #                   mutable_content=True, category="SECRET",
-                    #                   custom={'ENCRYPTED_DATA': message['data']})
-                    # for token in self.pubkey_token_dict[pubkey]:
-                    #     notifications.append(Notification(token=token, payload=payload))
-                if message_count == 0:
-                    continue
-                body = 'You\'ve got a new message' if message_count == 1 \
-                    else 'You\'ve got ' + str(message_count) + ' new messages'
-                alert = PayloadAlert(title='Session', body=body)
-                payload = Payload(alert=alert, badge=message_count, sound="default",
-                                  custom={'remote': True})
-                for token in self.pubkey_token_dict[pubkey]:
-                    notifications.append(Notification(token=token, payload=payload))
+                    alert = PayloadAlert(title='Session', body='You\'ve got a new message')
+                    payload = Payload(alert=alert, badge=1, sound="default",
+                                      mutable_content=True, category="SECRET",
+                                      custom={'ENCRYPTED_DATA': message['data']})
+                    for token in self.pubkey_token_dict[pubkey]:
+                        notifications.append(Notification(token=token, payload=payload))
             self.execute_push(notifications, NotificationPriority.Immediate)
             fetching_time = int(round(time.time())) - start_fetching_time
             waiting_time = 60 - fetching_time
