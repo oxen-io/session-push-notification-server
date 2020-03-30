@@ -157,9 +157,9 @@ class LokiAPI:
     def fetch_raw_messages(self, pubkey_list, last_hash):
         proxies = []
         requests = []
-        messages = {}
+        messages_dict = {}
         for pubkey in pubkey_list:
-            messages[pubkey] = []
+            messages_dict[pubkey] = []
             prx, req = self.get_raw_messages(pubkey, last_hash[pubkey])
             proxies += prx
             requests += req
@@ -172,8 +172,8 @@ class LokiAPI:
             if data is None:
                 continue
             message_json = json.loads(data['body'])
-            for message in message_json['messages']:
-                if message not in messages[pubkey_list[pubkey_index]]:
-                    messages[pubkey_list[pubkey_index]].append(message)
-        return messages
+            messages = list(message_json['messages'])
+            if len(messages) > len(messages_dict[pubkey_list[pubkey_index]]):
+                messages_dict[pubkey_list[pubkey_index]] = messages
+        return messages_dict
 

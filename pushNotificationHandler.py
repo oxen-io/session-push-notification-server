@@ -77,6 +77,11 @@ class PushNotificationHelper:
         else:
             self.logger.warning("Push fail for unknown reason")
 
+    def disable_token(self, token):
+        self.remove_invalid_token(token)
+        if token in self.push_fails.keys():
+            del self.push_fails[token]
+
     def remove_invalid_token(self, token):
         pass
 
@@ -149,6 +154,10 @@ class NormalPushNotificationHelper(PushNotificationHelper):
 
         for pubkey in self.pubkey_token_dict.keys():
             self.last_hash[pubkey] = ''
+
+    def update_last_hash(self, pubkey, last_hash):
+        if pubkey in self.last_hash.keys():
+            self.last_hash[pubkey] = last_hash
 
     def update_token_pubkey_pair(self, token, pubkey):
         self.logger.info('update token pubkey pairs (' + token + ', ' + pubkey + ')')
