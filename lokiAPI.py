@@ -173,7 +173,14 @@ class LokiAPI:
                 continue
             message_json = json.loads(data['body'])
             messages = list(message_json['messages'])
-            if len(messages) > len(messages_dict[pubkey_list[pubkey_index]]):
+            old_length = len(messages_dict[pubkey_list[pubkey_index]])
+            new_length = len(messages)
+            if old_length == 0:
                 messages_dict[pubkey_list[pubkey_index]] = messages
+            elif new_length > 0:
+                old_expiration = int(messages_dict[pubkey_list[pubkey_index]][old_length - 1]['expiration'])
+                new_expiration = int(messages[new_length - 1]['expiration'])
+                if new_expiration > old_expiration:
+                    messages_dict[pubkey_list[pubkey_index]] = messages
         return messages_dict
 

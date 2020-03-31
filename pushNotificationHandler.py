@@ -200,6 +200,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             start_fetching_time = int(round(time.time()))
             raw_messages = await self.fetch_messages()
             for pubkey, messages in raw_messages.items():
+                self.logger.info(str(len(messages)) + " new message for " + pubkey)
                 if len(messages) == 0:
                     continue
                 for message in messages:
