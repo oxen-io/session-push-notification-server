@@ -5,7 +5,6 @@ from PyAPNs.apns2.client import APNsClient, NotificationPriority, Notification
 from PyAPNs.apns2.payload import Payload, PayloadAlert
 from PyAPNs.apns2.errors import *
 from lokiAPI import LokiAPI
-from base64 import b64decode
 
 
 class PushNotificationHelper:
@@ -43,10 +42,11 @@ class PushNotificationHelper:
         except ConnectionFailed:
             self.logger.error('Connection failed')
             self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
+            self.execute_push(notifications, priority)
         except Exception as e:
             self.logger.exception(e)
             self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
-
+            self.execute_push(notifications, priority)
         for token, result in results.items():
             if result != 'Success':
                 self.handle_fail_result(token, result)
