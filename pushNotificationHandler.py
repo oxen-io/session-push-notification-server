@@ -212,8 +212,9 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                     current_time = int(round(time.time() * 1000))
                     if message_expiration - current_time < 23.9 * 60 * 60 * 1000:
                         continue
-                    self.last_hash[pubkey] = {LASTHASH: message['hash'],
-                                              EXPIRATION: process_expiration(message['expiration'])}
+                    if message_expiration > self.last_hash[pubkey][EXPIRATION]:
+                        self.last_hash[pubkey] = {LASTHASH: message['hash'],
+                                                  EXPIRATION: process_expiration(message['expiration'])}
                     alert = PayloadAlert(title='Session', body='You\'ve got a new message')
                     payload = Payload(alert=alert, badge=1, sound="default",
                                       mutable_content=True, category="SECRET",
