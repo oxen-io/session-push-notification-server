@@ -160,7 +160,7 @@ class LokiAPI:
         messages_dict = {}
         for pubkey in pubkey_list:
             messages_dict[pubkey] = []
-            prx, req = self.get_raw_messages(pubkey, last_hash[pubkey])
+            prx, req = self.get_raw_messages(pubkey, last_hash[pubkey][LASTHASH])
             proxies += prx
             requests += req
         response = grequests.map(requests)

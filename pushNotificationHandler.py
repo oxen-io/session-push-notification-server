@@ -1,10 +1,11 @@
 from const import *
-import os.path, asyncio, random, time, pickle, json
+import os.path, asyncio, random, time, pickle
 from threading import Thread
 from PyAPNs.apns2.client import APNsClient, NotificationPriority, Notification
 from PyAPNs.apns2.payload import Payload, PayloadAlert
 from PyAPNs.apns2.errors import *
 from lokiAPI import LokiAPI
+from utils import *
 
 
 class PushNotificationHelper:
@@ -41,11 +42,11 @@ class PushNotificationHelper:
                                                         priority=priority)
         except ConnectionFailed:
             self.logger.error('Connection failed')
-            self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
+            # self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
             self.execute_push(notifications, priority)
         except Exception as e:
             self.logger.exception(e)
-            self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
+            # self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
             self.execute_push(notifications, priority)
         for token, result in results.items():
             if result != 'Success':
@@ -153,11 +154,14 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 self.push_fails[token] = 0
 
         for pubkey in self.pubkey_token_dict.keys():
-            self.last_hash[pubkey] = ''
+            self.last_hash[pubkey] = {LASTHASH: '',
+                                      EXPIRATION: 0}
 
-    def update_last_hash(self, pubkey, last_hash):
+    def update_last_hash(self, pubkey, last_hash, expiration):
         if pubkey in self.last_hash.keys():
-            self.last_hash[pubkey] = last_hash
+            if self.last_hash[pubkey][EXPIRATION] < expiration:
+                self.last_hash[pubkey] = {LASTHASH: last_hash,
+                                          EXPIRATION: process_expiration(expiration)}
 
     def update_token_pubkey_pair(self, token, pubkey):
         self.logger.info('update token pubkey pairs (' + token + ', ' + pubkey + ')')
@@ -206,9 +210,10 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 for message in messages:
                     message_expiration = int(message['expiration'])
                     current_time = int(round(time.time() * 1000))
-                    if message_expiration - current_time < 23.8 * 60 * 60 * 1000:
+                    if message_expiration - current_time < 23.9 * 60 * 60 * 1000:
                         continue
-                    self.last_hash[pubkey] = message['hash']
+                    self.last_hash[pubkey] = {LASTHASH: message['hash'],
+                                              EXPIRATION: process_expiration(message['expiration'])}
                     alert = PayloadAlert(title='Session', body='You\'ve got a new message')
                     payload = Payload(alert=alert, badge=1, sound="default",
                                       mutable_content=True, category="SECRET",
@@ -216,7 +221,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                     for token in self.pubkey_token_dict[pubkey]:
                         notifications.append(Notification(token=token, payload=payload))
                 if len(self.last_hash[pubkey]) == 0:
-                    self.last_hash[pubkey] = messages[len(messages) - 1]['hash']
+                    self.last_hash[pubkey] = {LASTHASH: messages[len(messages) - 1]['hash'],
+                                              EXPIRATION: messages[len(messages) - 1]['expiration']}
             self.execute_push(notifications, NotificationPriority.Immediate)
             fetching_time = int(round(time.time())) - start_fetching_time
             waiting_time = 60 - fetching_time

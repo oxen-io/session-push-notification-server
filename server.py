@@ -52,6 +52,7 @@ def register():
 def update_last_hash():
     last_hash = None
     pubkey = None
+    expiration = None
     response = jsonify({CODE: 0,
                         MSG: PARA_MISSING})
 
@@ -59,19 +60,25 @@ def update_last_hash():
         last_hash = request.args[LASTHASH]
         if PUBKEY in request.args:
             pubkey = request.args[PUBKEY]
+        if EXPIRATION in request.args:
+            expiration = request.args[EXPIRATION]
 
     if request.json and LASTHASH in request.json:
         last_hash = request.json[LASTHASH]
         if PUBKEY in request.json:
             pubkey = request.json[PUBKEY]
+        if EXPIRATION in request.json:
+            expiration = request.json[EXPIRATION]
 
     if request.form and LASTHASH in request.form:
         last_hash = request.form[LASTHASH]
         if PUBKEY in request.form:
             pubkey = request.form[PUBKEY]
+        if EXPIRATION in request.form:
+            expiration = request.form[EXPIRATION]
 
-    if last_hash and pubkey:
-        NPN_helper.update_last_hash(pubkey, last_hash)
+    if last_hash and pubkey and expiration:
+        NPN_helper.update_last_hash(pubkey, last_hash, expiration)
         response = jsonify({CODE: 1,
                             MSG: SUCCESS})
 
