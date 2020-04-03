@@ -208,7 +208,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 if len(messages) == 0:
                     continue
                 for message in messages:
-                    message_expiration = int(message['expiration'])
+                    message_expiration = process_expiration(int(message['expiration']))
                     current_time = int(round(time.time() * 1000))
                     if message_expiration - current_time < 23.9 * 60 * 60 * 1000:
                         continue
