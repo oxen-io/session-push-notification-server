@@ -221,7 +221,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                                       custom={'ENCRYPTED_DATA': message['data']})
                     for token in self.pubkey_token_dict[pubkey]:
                         notifications.append(Notification(token=token, payload=payload))
-                if len(self.last_hash[pubkey]) == 0:
+                if len(self.last_hash[pubkey][LASTHASH]) == 0:
                     self.last_hash[pubkey] = {LASTHASH: messages[len(messages) - 1]['hash'],
                                               EXPIRATION: process_expiration(messages[len(messages) - 1]['expiration'])}
             self.execute_push(notifications, NotificationPriority.Immediate)
