@@ -208,13 +208,13 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 if len(messages) == 0:
                     continue
                 for message in messages:
-                    message_expiration = process_expiration(int(message['expiration']))
+                    message_expiration = process_expiration(message['expiration'])
                     current_time = int(round(time.time() * 1000))
                     if message_expiration - current_time < 23.9 * 60 * 60 * 1000:
                         continue
                     if message_expiration > self.last_hash[pubkey][EXPIRATION]:
                         self.last_hash[pubkey] = {LASTHASH: message['hash'],
-                                                  EXPIRATION: process_expiration(message['expiration'])}
+                                                  EXPIRATION: message_expiration}
                     alert = PayloadAlert(title='Session', body='You\'ve got a new message')
                     payload = Payload(alert=alert, badge=1, sound="default",
                                       mutable_content=True, category="SECRET",
@@ -223,7 +223,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                         notifications.append(Notification(token=token, payload=payload))
                 if len(self.last_hash[pubkey]) == 0:
                     self.last_hash[pubkey] = {LASTHASH: messages[len(messages) - 1]['hash'],
-                                              EXPIRATION: messages[len(messages) - 1]['expiration']}
+                                              EXPIRATION: process_expiration(messages[len(messages) - 1]['expiration'])}
             self.execute_push(notifications, NotificationPriority.Immediate)
             fetching_time = int(round(time.time())) - start_fetching_time
             waiting_time = 60 - fetching_time
