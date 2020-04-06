@@ -178,7 +178,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
 
         self.pubkey_token_dict[pubkey].add(token)
         self.push_fails[token] = 0
-        self.last_hash[pubkey] = ''
+        self.last_hash[pubkey] = {LASTHASH: '',
+                                  EXPIRATION: 0}
         with open(PUBKEY_TOKEN_DB, 'wb') as pubkey_token_db:
             pickle.dump(self.pubkey_token_dict, pubkey_token_db)
         pubkey_token_db.close()
