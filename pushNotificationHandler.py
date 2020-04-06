@@ -6,6 +6,7 @@ from PyAPNs.apns2.payload import Payload, PayloadAlert
 from PyAPNs.apns2.errors import *
 from lokiAPI import LokiAPI
 from utils import *
+import firebase_admin
 
 
 class PushNotificationHelper:
