@@ -172,6 +172,9 @@ class LokiAPI:
             if data is None:
                 continue
             message_json = json.loads(data['body'])
+            if not message_json or 'messages' not in dict(message_json).keys():
+                print(message_json)
+                continue
             messages = list(message_json['messages'])
             old_length = len(messages_dict[pubkey_list[pubkey_index]])
             new_length = len(messages)

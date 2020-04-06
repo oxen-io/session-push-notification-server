@@ -159,10 +159,11 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                                       EXPIRATION: 0}
 
     def update_last_hash(self, pubkey, last_hash, expiration):
+        expiration = process_expiration(expiration)
         if pubkey in self.last_hash.keys():
             if self.last_hash[pubkey][EXPIRATION] < expiration:
                 self.last_hash[pubkey] = {LASTHASH: last_hash,
-                                          EXPIRATION: process_expiration(expiration)}
+                                          EXPIRATION: expiration}
 
     def update_token_pubkey_pair(self, token, pubkey):
         self.logger.info('update token pubkey pairs (' + token + ', ' + pubkey + ')')
