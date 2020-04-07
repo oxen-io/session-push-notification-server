@@ -10,3 +10,9 @@ def process_expiration(expiration):
     if expiration - current_time > ms_of_a_day:
         expiration -= 3 * ms_of_a_day
     return expiration
+
+
+def is_iOS_device_token(token):
+    if len(token) == 64:
+        return True
+    return False

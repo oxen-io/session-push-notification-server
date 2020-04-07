@@ -1,5 +1,5 @@
 from const import *
-import os.path, asyncio, random, time, pickle
+import os.path, asyncio, random, pickle
 from threading import Thread
 from PyAPNs.apns2.client import APNsClient, NotificationPriority, Notification
 from PyAPNs.apns2.payload import Payload, PayloadAlert
@@ -7,11 +7,14 @@ from PyAPNs.apns2.errors import *
 from lokiAPI import LokiAPI
 from utils import *
 import firebase_admin
+from firebase_admin import credentials, messaging
+from firebase_admin.exceptions import  *
 
 
 class PushNotificationHelper:
     def __init__(self, logger):
         self.apns = APNsClient(CERT_FILE, use_sandbox=debug_mode, use_alternative_port=False)
+        self.firebase_app = firebase_admin.initialize_app(credentials.RefreshToken(FIREBASE_TOKEN))
         self.thread = Thread(target=self.run_tasks)
         self.push_fails = {}
         self.logger = logger
@@ -32,23 +35,39 @@ class PushNotificationHelper:
     def run_tasks(self):
         asyncio.run(self.create_tasks())
 
-    def execute_push(self, notifications, priority):
+    def execute_push_Android(self, notifications):
         if len(notifications) == 0:
-            return []
-
-        results = {}
+            return
+        results = None
         try:
-            results = self.apns.send_notification_batch(notifications=notifications,
-                                                        topic=BUNDLE_ID,
-                                                        priority=priority)
-        except ConnectionFailed:
-            self.logger.error('Connection failed')
-            # self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
-            self.execute_push(notifications, priority)
+            results = messaging.send_all(messages=notifications, app=self.firebase_app)
+        except FirebaseError as e:
+            self.logger.error(e.cause)
         except Exception as e:
             self.logger.exception(e)
-            # self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
-            self.execute_push(notifications, priority)
+
+        if results is not None:
+            for i in range(len(notifications)):
+                response = results.responses[i]
+                token = notifications[i].token
+                if not response.success:
+                    error = response.exception
+                    self.handle_fail_result(token, (error.cause, error.http_response))
+                else:
+                    self.push_fails[token] = 0
+
+    def execute_push_iOS(self, notifications, priority):
+        if len(notifications) == 0:
+            return
+        results = {}
+        try:
+            results = self.apns.send_notification_batch(notifications=notifications, topic=BUNDLE_ID, priority=priority)
+        except ConnectionFailed:
+            self.logger.error('Connection failed')
+            self.execute_push_iOS(notifications, priority)
+        except Exception as e:
+            self.logger.exception(e)
+            self.execute_push_iOS(notifications, priority)
         for token, result in results.items():
             if result != 'Success':
                 self.handle_fail_result(token, result)
@@ -134,7 +153,7 @@ class SilentPushNotificationHelper(PushNotificationHelper):
             notifications = []
             for token in self.tokens:
                 notifications.append(Notification(payload=payload, token=token))
-            self.execute_push(notifications, NotificationPriority.Delayed)
+            self.execute_push_iOS(notifications, NotificationPriority.Delayed)
 
 
 class NormalPushNotificationHelper(PushNotificationHelper):
@@ -203,7 +222,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
     async def send_push_notification(self):
         self.logger.info('Start to fetch and push')
         while not self.stop_running:
-            notifications = []
+            notifications_iOS = []
+            notifications_Android = []
             start_fetching_time = int(round(time.time()))
             raw_messages = await self.fetch_messages()
             for pubkey, messages in raw_messages.items():
@@ -218,16 +238,22 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                     if message_expiration > self.last_hash[pubkey][EXPIRATION]:
                         self.last_hash[pubkey] = {LASTHASH: message['hash'],
                                                   EXPIRATION: message_expiration}
-                    alert = PayloadAlert(title='Session', body='You\'ve got a new message')
-                    payload = Payload(alert=alert, badge=1, sound="default",
-                                      mutable_content=True, category="SECRET",
-                                      custom={'ENCRYPTED_DATA': message['data']})
                     for token in self.pubkey_token_dict[pubkey]:
-                        notifications.append(Notification(token=token, payload=payload))
+                        if is_iOS_device_token(token):
+                            alert = PayloadAlert(title='Session', body='You\'ve got a new message')
+                            payload = Payload(alert=alert, badge=1, sound="default",
+                                              mutable_content=True, category="SECRET",
+                                              custom={'ENCRYPTED_DATA': message['data']})
+                            notifications_iOS.append(Notification(token=token, payload=payload))
+                        else:
+                            notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
+                                                             token=token)
+                            notifications_Android.append(notification)
                 if len(self.last_hash[pubkey][LASTHASH]) == 0:
                     self.last_hash[pubkey] = {LASTHASH: messages[len(messages) - 1]['hash'],
                                               EXPIRATION: process_expiration(messages[len(messages) - 1]['expiration'])}
-            self.execute_push(notifications, NotificationPriority.Immediate)
+            self.execute_push_iOS(notifications_iOS, NotificationPriority.Immediate)
+            self.execute_push_Android(notifications_Android)
             fetching_time = int(round(time.time())) - start_fetching_time
             waiting_time = 60 - fetching_time
             if waiting_time < 0:
