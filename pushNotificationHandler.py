@@ -161,8 +161,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.api = LokiAPI()
         self.pubkey_token_dict = {}
         self.last_hash = {}
-        self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
         super().__init__(logger)
+        self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
 
     def load_tokens(self):
         if os.path.isfile(PUBKEY_TOKEN_DB):
