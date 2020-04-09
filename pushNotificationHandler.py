@@ -14,7 +14,7 @@ from firebase_admin.exceptions import  *
 class PushNotificationHelper:
     def __init__(self, logger):
         self.apns = APNsClient(CERT_FILE, use_sandbox=debug_mode, use_alternative_port=False)
-        self.firebase_app = firebase_admin.initialize_app(credentials.RefreshToken(FIREBASE_TOKEN))
+        self.firebase_app = None
         self.thread = Thread(target=self.run_tasks)
         self.push_fails = {}
         self.logger = logger
@@ -123,7 +123,7 @@ class SilentPushNotificationHelper(PushNotificationHelper):
 
     def update_token(self, token):
         self.logger.info('update token ' + token)
-        if token in self.tokens:
+        if token in self.tokens or not is_iOS_device_token(token):
             return
         self.tokens.append(token)
         self.push_fails[token] = 0
@@ -161,6 +161,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.api = LokiAPI()
         self.pubkey_token_dict = {}
         self.last_hash = {}
+        self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
         super().__init__(logger)
 
     def load_tokens(self):

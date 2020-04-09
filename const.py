@@ -13,7 +13,7 @@ FAIL = 'Fail'
 TOKEN_DB = 'token_db'
 PUBKEY_TOKEN_DB = 'token_pubkey_db'
 CERT_FILE = 'cert.pem'
-FIREBASE_TOKEN = 'path/to/refreshToken.json'
+FIREBASE_TOKEN = 'loki-5a81e-firebase-adminsdk-7plup-0698317995.json'
 # CERT_FILE = 'cert_dev.pem'
 
 BUNDLE_ID = 'com.loki-project.loki-messenger'
