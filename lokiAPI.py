@@ -169,9 +169,12 @@ class LokiAPI:
             data = proxies[proxy_index].parse_response(res)
             pubkey_index = proxy_index // 3
             proxy_index += 1
-            if (data is None) or ('body' not in data.keys()) or (data['body'] is None):
+            if data is None or data['body'] is None or len(data['body']) < 3:
                 continue
-            message_json = json.loads(data['body'])
+            try:
+                message_json = json.loads(data['body'], strict=False)
+            except Exception:
+                message_json = None
             if not message_json or 'messages' not in dict(message_json).keys():
                 print(message_json)
                 continue
