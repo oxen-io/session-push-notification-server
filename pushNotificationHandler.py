@@ -54,6 +54,7 @@ class PushNotificationHelper:
                     error = response.exception
                     self.handle_fail_result(token, (error.cause, error.http_response))
                 else:
+                    print(response.success)
                     self.push_fails[token] = 0
 
     def execute_push_iOS(self, notifications, priority):
