@@ -235,11 +235,11 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 for message in messages:
                     message_expiration = process_expiration(message['expiration'])
                     current_time = int(round(time.time() * 1000))
-                    if message_expiration - current_time < 23.9 * 60 * 60 * 1000:
-                        continue
                     if message_expiration > self.last_hash[pubkey][EXPIRATION]:
                         self.last_hash[pubkey] = {LASTHASH: message['hash'],
                                                   EXPIRATION: message_expiration}
+                    if message_expiration - current_time < 23.9 * 60 * 60 * 1000:
+                        continue
                     for token in self.pubkey_token_dict[pubkey]:
                         if is_iOS_device_token(token):
                             alert = PayloadAlert(title='Session', body='You\'ve got a new message')
@@ -251,9 +251,6 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                             notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
                                                              token=token)
                             notifications_Android.append(notification)
-                if len(self.last_hash[pubkey][LASTHASH]) == 0:
-                    self.last_hash[pubkey] = {LASTHASH: messages[len(messages) - 1]['hash'],
-                                              EXPIRATION: process_expiration(messages[len(messages) - 1]['expiration'])}
             self.execute_push_iOS(notifications_iOS, NotificationPriority.Immediate)
             self.execute_push_Android(notifications_Android)
             fetching_time = int(round(time.time())) - start_fetching_time
