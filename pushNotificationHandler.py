@@ -52,7 +52,7 @@ class PushNotificationHelper:
                 token = notifications[i].token
                 if not response.success:
                     error = response.exception
-                    self.handle_fail_result(token, (error.cause, error.http_response))
+                    self.handle_fail_result(token, (error.cause, error.http_response.reason))
                 else:
                     print(response.success)
                     self.push_fails[token] = 0
@@ -95,7 +95,7 @@ class PushNotificationHelper:
             del self.push_fails[key]
         if isinstance(result, tuple):
             reason, info = result
-            self.logger.warning("Push fail " + reason + ' ' + info)
+            self.logger.warning("Push fail " + reason + ' ' + str(info))
         else:
             self.logger.warning("Push fail for unknown reason")
 
