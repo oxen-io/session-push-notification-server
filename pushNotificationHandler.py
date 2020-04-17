@@ -211,6 +211,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         for pubkey, tokens in self.pubkey_token_dict.items():
             if token in tokens:
                 self.pubkey_token_dict[pubkey].remove(token)
+                if len(self.pubkey_token_dict[pubkey]) == 0:
+                    self.pubkey_token_dict.pop(pubkey)
                 break
             with open(PUBKEY_TOKEN_DB, 'wb') as pubkey_token_db:
                 pickle.dump(self.pubkey_token_dict, pubkey_token_db)
