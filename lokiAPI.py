@@ -157,10 +157,10 @@ class LokiAPI:
     def fetch_raw_messages(self, pubkey_list, last_hash):
         proxies = []
         requests = []
-        messages = {}
+        messages_dict = {}
         for pubkey in pubkey_list:
-            messages[pubkey] = []
-            prx, req = self.get_raw_messages(pubkey, last_hash[pubkey])
+            messages_dict[pubkey] = []
+            prx, req = self.get_raw_messages(pubkey, last_hash[pubkey][LASTHASH])
             proxies += prx
             requests += req
         response = grequests.map(requests)
@@ -169,11 +169,24 @@ class LokiAPI:
             data = proxies[proxy_index].parse_response(res)
             pubkey_index = proxy_index // 3
             proxy_index += 1
-            if data is None:
+            if data is None or data['body'] is None or len(data['body']) < 3:
                 continue
-            message_json = json.loads(data['body'])
-            for message in message_json['messages']:
-                if message not in messages[pubkey_list[pubkey_index]]:
-                    messages[pubkey_list[pubkey_index]].append(message)
-        return messages
+            try:
+                message_json = json.loads(data['body'], strict=False)
+            except Exception:
+                message_json = None
+            if not message_json or 'messages' not in dict(message_json).keys():
+                print(message_json)
+                continue
+            messages = list(message_json['messages'])
+            old_length = len(messages_dict[pubkey_list[pubkey_index]])
+            new_length = len(messages)
+            if old_length == 0:
+                messages_dict[pubkey_list[pubkey_index]] = messages
+            elif new_length > 0:
+                old_expiration = int(messages_dict[pubkey_list[pubkey_index]][old_length - 1]['expiration'])
+                new_expiration = int(messages[new_length - 1]['expiration'])
+                if new_expiration > old_expiration:
+                    messages_dict[pubkey_list[pubkey_index]] = messages
+        return messages_dict
 

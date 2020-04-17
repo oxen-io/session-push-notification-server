@@ -1,16 +1,20 @@
 from const import *
-import os.path, asyncio, random, time, pickle, json
+import os.path, asyncio, random, pickle
 from threading import Thread
 from PyAPNs.apns2.client import APNsClient, NotificationPriority, Notification
 from PyAPNs.apns2.payload import Payload, PayloadAlert
 from PyAPNs.apns2.errors import *
 from lokiAPI import LokiAPI
-from base64 import b64decode
+from utils import *
+import firebase_admin
+from firebase_admin import credentials, messaging
+from firebase_admin.exceptions import  *
 
 
 class PushNotificationHelper:
     def __init__(self, logger):
         self.apns = APNsClient(CERT_FILE, use_sandbox=debug_mode, use_alternative_port=False)
+        self.firebase_app = None
         self.thread = Thread(target=self.run_tasks)
         self.push_fails = {}
         self.logger = logger
@@ -31,22 +35,40 @@ class PushNotificationHelper:
     def run_tasks(self):
         asyncio.run(self.create_tasks())
 
-    def execute_push(self, notifications, priority):
+    def execute_push_Android(self, notifications):
         if len(notifications) == 0:
-            return []
-
-        results = {}
+            return
+        results = None
         try:
-            results = self.apns.send_notification_batch(notifications=notifications,
-                                                        topic=BUNDLE_ID,
-                                                        priority=priority)
-        except ConnectionFailed:
-            self.logger.error('Connection failed')
-            self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
+            results = messaging.send_all(messages=notifications, app=self.firebase_app)
+        except FirebaseError as e:
+            self.logger.error(e.cause)
         except Exception as e:
             self.logger.exception(e)
-            self.apns = APNsClient(CERT_FILE, use_sandbox=False, use_alternative_port=False)
 
+        if results is not None:
+            for i in range(len(notifications)):
+                response = results.responses[i]
+                token = notifications[i].token
+                if not response.success:
+                    error = response.exception
+                    self.handle_fail_result(token, (error.cause, error.http_response))
+                else:
+                    print(response.success)
+                    self.push_fails[token] = 0
+
+    def execute_push_iOS(self, notifications, priority):
+        if len(notifications) == 0:
+            return
+        results = {}
+        try:
+            results = self.apns.send_notification_batch(notifications=notifications, topic=BUNDLE_ID, priority=priority)
+        except ConnectionFailed:
+            self.logger.error('Connection failed')
+            self.execute_push_iOS(notifications, priority)
+        except Exception as e:
+            self.logger.exception(e)
+            self.execute_push_iOS(notifications, priority)
         for token, result in results.items():
             if result != 'Success':
                 self.handle_fail_result(token, result)
@@ -77,6 +99,11 @@ class PushNotificationHelper:
         else:
             self.logger.warning("Push fail for unknown reason")
 
+    def disable_token(self, token):
+        self.remove_invalid_token(token)
+        if token in self.push_fails.keys():
+            del self.push_fails[token]
+
     def remove_invalid_token(self, token):
         pass
 
@@ -97,7 +124,7 @@ class SilentPushNotificationHelper(PushNotificationHelper):
 
     def update_token(self, token):
         self.logger.info('update token ' + token)
-        if token in self.tokens:
+        if token in self.tokens or not is_iOS_device_token(token):
             return
         self.tokens.append(token)
         self.push_fails[token] = 0
@@ -127,7 +154,7 @@ class SilentPushNotificationHelper(PushNotificationHelper):
             notifications = []
             for token in self.tokens:
                 notifications.append(Notification(payload=payload, token=token))
-            self.execute_push(notifications, NotificationPriority.Delayed)
+            self.execute_push_iOS(notifications, NotificationPriority.Delayed)
 
 
 class NormalPushNotificationHelper(PushNotificationHelper):
@@ -136,6 +163,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.pubkey_token_dict = {}
         self.last_hash = {}
         super().__init__(logger)
+        self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
 
     def load_tokens(self):
         if os.path.isfile(PUBKEY_TOKEN_DB):
@@ -148,7 +176,15 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 self.push_fails[token] = 0
 
         for pubkey in self.pubkey_token_dict.keys():
-            self.last_hash[pubkey] = ''
+            self.last_hash[pubkey] = {LASTHASH: '',
+                                      EXPIRATION: 0}
+
+    def update_last_hash(self, pubkey, last_hash, expiration):
+        expiration = process_expiration(expiration)
+        if pubkey in self.last_hash.keys():
+            if self.last_hash[pubkey][EXPIRATION] < expiration:
+                self.last_hash[pubkey] = {LASTHASH: last_hash,
+                                          EXPIRATION: expiration}
 
     def update_token_pubkey_pair(self, token, pubkey):
         self.logger.info('update token pubkey pairs (' + token + ', ' + pubkey + ')')
@@ -165,7 +201,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
 
         self.pubkey_token_dict[pubkey].add(token)
         self.push_fails[token] = 0
-        self.last_hash[pubkey] = ''
+        self.last_hash[pubkey] = {LASTHASH: '',
+                                  EXPIRATION: 0}
         with open(PUBKEY_TOKEN_DB, 'wb') as pubkey_token_db:
             pickle.dump(self.pubkey_token_dict, pubkey_token_db)
         pubkey_token_db.close()
@@ -174,6 +211,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         for pubkey, tokens in self.pubkey_token_dict.items():
             if token in tokens:
                 self.pubkey_token_dict[pubkey].remove(token)
+                if len(self.pubkey_token_dict[pubkey]) == 0:
+                    self.pubkey_token_dict.pop(pubkey)
                 break
             with open(PUBKEY_TOKEN_DB, 'wb') as pubkey_token_db:
                 pickle.dump(self.pubkey_token_dict, pubkey_token_db)
@@ -187,40 +226,35 @@ class NormalPushNotificationHelper(PushNotificationHelper):
     async def send_push_notification(self):
         self.logger.info('Start to fetch and push')
         while not self.stop_running:
-            notifications = []
+            notifications_iOS = []
+            notifications_Android = []
             start_fetching_time = int(round(time.time()))
             raw_messages = await self.fetch_messages()
             for pubkey, messages in raw_messages.items():
+                self.logger.info(str(len(messages)) + " new message for " + pubkey)
                 if len(messages) == 0:
                     continue
-                # last_hash = self.last_hash[pubkey]
-                self.last_hash[pubkey] = messages[len(messages) - 1]['hash']
-                # if len(last_hash) == 0:
-                #     continue
-                message_count = 0
                 for message in messages:
-                    message_expiration = int(message['expiration'])
+                    message_expiration = process_expiration(message['expiration'])
                     current_time = int(round(time.time() * 1000))
-                    if message_expiration - current_time < 23.8 * 60 * 60 * 1000:
+                    if message_expiration > self.last_hash[pubkey][EXPIRATION]:
+                        self.last_hash[pubkey] = {LASTHASH: message['hash'],
+                                                  EXPIRATION: message_expiration}
+                    if message_expiration - current_time < 23.9 * 60 * 60 * 1000:
                         continue
-                    message_count += 1
-                    # TODO: Preview of the message
-                    # alert = PayloadAlert(title='Session', body='You\'ve got a new message')
-                    # payload = Payload(alert=alert, badge=1, sound="default",
-                    #                   mutable_content=True, category="SECRET",
-                    #                   custom={'ENCRYPTED_DATA': message['data']})
-                    # for token in self.pubkey_token_dict[pubkey]:
-                    #     notifications.append(Notification(token=token, payload=payload))
-                if message_count == 0:
-                    continue
-                body = 'You\'ve got a new message' if message_count == 1 \
-                    else 'You\'ve got ' + str(message_count) + ' new messages'
-                alert = PayloadAlert(title='Session', body=body)
-                payload = Payload(alert=alert, badge=message_count, sound="default",
-                                  custom={'remote': True})
-                for token in self.pubkey_token_dict[pubkey]:
-                    notifications.append(Notification(token=token, payload=payload))
-            self.execute_push(notifications, NotificationPriority.Immediate)
+                    for token in self.pubkey_token_dict[pubkey]:
+                        if is_iOS_device_token(token):
+                            alert = PayloadAlert(title='Session', body='You\'ve got a new message')
+                            payload = Payload(alert=alert, badge=1, sound="default",
+                                              mutable_content=True, category="SECRET",
+                                              custom={'ENCRYPTED_DATA': message['data']})
+                            notifications_iOS.append(Notification(token=token, payload=payload))
+                        else:
+                            notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
+                                                             token=token)
+                            notifications_Android.append(notification)
+            self.execute_push_iOS(notifications_iOS, NotificationPriority.Immediate)
+            self.execute_push_Android(notifications_Android)
             fetching_time = int(round(time.time())) - start_fetching_time
             waiting_time = 60 - fetching_time
             if waiting_time < 0:
