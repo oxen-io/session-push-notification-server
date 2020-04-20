@@ -160,7 +160,10 @@ class LokiAPI:
         messages_dict = {}
         for pubkey in pubkey_list:
             messages_dict[pubkey] = []
-            prx, req = self.get_raw_messages(pubkey, last_hash[pubkey][LASTHASH])
+            hash_value = ""
+            if pubkey in last_hash:
+                hash_value = last_hash[pubkey][LASTHASH]
+            prx, req = self.get_raw_messages(pubkey, hash_value)
             proxies += prx
             requests += req
         response = grequests.map(requests)
@@ -176,7 +179,6 @@ class LokiAPI:
             except Exception:
                 message_json = None
             if not message_json or 'messages' not in dict(message_json).keys():
-                print(message_json)
                 continue
             messages = list(message_json['messages'])
             old_length = len(messages_dict[pubkey_list[pubkey_index]])

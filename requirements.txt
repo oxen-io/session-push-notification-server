@@ -6,3 +6,5 @@ grequests==0.4.0
 curve25519-donna==1.3
 pycryptodome==3.9.7
 firebase_admin
+peewee==3.13.2
+

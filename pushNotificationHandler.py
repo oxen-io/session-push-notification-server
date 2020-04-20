@@ -52,9 +52,8 @@ class PushNotificationHelper:
                 token = notifications[i].token
                 if not response.success:
                     error = response.exception
-                    self.handle_fail_result(token, (error.cause, error.http_response.reason))
+                    self.handle_fail_result(token, (error.cause.reason, ""))
                 else:
-                    print(response.success)
                     self.push_fails[token] = 0
 
     def execute_push_iOS(self, notifications, priority):
@@ -95,7 +94,7 @@ class PushNotificationHelper:
             del self.push_fails[key]
         if isinstance(result, tuple):
             reason, info = result
-            self.logger.warning("Push fail " + reason + ' ' + str(info))
+            self.logger.warning("Push fail " + str(reason) + ' ' + str(info))
         else:
             self.logger.warning("Push fail for unknown reason")
 
@@ -123,7 +122,6 @@ class SilentPushNotificationHelper(PushNotificationHelper):
             self.push_fails[token] = 0
 
     def update_token(self, token):
-        self.logger.info('update token ' + token)
         if token in self.tokens or not is_iOS_device_token(token):
             return
         self.tokens.append(token)
@@ -187,7 +185,6 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                                           EXPIRATION: expiration}
 
     def update_token_pubkey_pair(self, token, pubkey):
-        self.logger.info('update token pubkey pairs (' + token + ', ' + pubkey + ')')
         if pubkey not in self.pubkey_token_dict.keys():
             self.pubkey_token_dict[pubkey] = set()
             self.api.get_swarm(pubkey)
@@ -231,7 +228,6 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             start_fetching_time = int(round(time.time()))
             raw_messages = await self.fetch_messages()
             for pubkey, messages in raw_messages.items():
-                self.logger.info(str(len(messages)) + " new message for " + pubkey)
                 if len(messages) == 0:
                     continue
                 for message in messages:
@@ -241,6 +237,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                         self.last_hash[pubkey] = {LASTHASH: message['hash'],
                                                   EXPIRATION: message_expiration}
                     if message_expiration - current_time < 23.9 * 60 * 60 * 1000:
+                        continue
+                    if pubkey not in self.pubkey_token_dict.keys():
                         continue
                     for token in self.pubkey_token_dict[pubkey]:
                         if is_iOS_device_token(token):
