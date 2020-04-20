@@ -232,14 +232,14 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 if len(messages) == 0:
                     continue
                 for message in messages:
+                    if pubkey not in self.pubkey_token_dict.keys():
+                        continue
                     message_expiration = process_expiration(message['expiration'])
                     current_time = int(round(time.time() * 1000))
                     if message_expiration > self.last_hash[pubkey][EXPIRATION]:
                         self.last_hash[pubkey] = {LASTHASH: message['hash'],
                                                   EXPIRATION: message_expiration}
                     if message_expiration - current_time < 23.9 * 60 * 60 * 1000:
-                        continue
-                    if pubkey not in self.pubkey_token_dict.keys():
                         continue
                     for token in self.pubkey_token_dict[pubkey]:
                         if is_iOS_device_token(token):
