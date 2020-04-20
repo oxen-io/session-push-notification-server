@@ -52,7 +52,8 @@ class PushNotificationHelper:
                 token = notifications[i].token
                 if not response.success:
                     error = response.exception
-                    self.handle_fail_result(token, (error.cause.reason, ""))
+                    self.logger.exception(error)
+                    self.handle_fail_result(token, ("HttpError", ""))
                 else:
                     self.push_fails[token] = 0
 
