@@ -163,6 +163,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.last_hash = {}
         super().__init__(logger)
         self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
+        self.db_thread = Thread(target=self.run_sync_db_tasks)
 
     def load_tokens(self):
         if os.path.isfile(PUBKEY_TOKEN_DB):
@@ -201,9 +202,6 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.push_fails[token] = 0
         self.last_hash[pubkey] = {LASTHASH: '',
                                   EXPIRATION: 0}
-        with open(PUBKEY_TOKEN_DB, 'wb') as pubkey_token_db:
-            pickle.dump(self.pubkey_token_dict, pubkey_token_db)
-        pubkey_token_db.close()
 
     def remove_invalid_token(self, token):
         for pubkey, tokens in self.pubkey_token_dict.items():
@@ -212,9 +210,25 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 if len(self.pubkey_token_dict[pubkey]) == 0:
                     self.pubkey_token_dict.pop(pubkey)
                 break
+
+    async def create_sync_db_tasks(self):
+        task = asyncio.create_task(self.sync_to_db())
+        await task
+
+    def run_sync_db_tasks(self):
+        asyncio.run(self.create_sync_db_tasks())
+
+    async def sync_to_db(self):
+        while not self.stop_running:
+            for i in range(600):
+                await asyncio.sleep(1)
+                if self.stop_running:
+                    return
+            self.logger.info('start to sync to file at ' + time.asctime(time.localtime(time.time())))
             with open(PUBKEY_TOKEN_DB, 'wb') as pubkey_token_db:
                 pickle.dump(self.pubkey_token_dict, pubkey_token_db)
             pubkey_token_db.close()
+            self.logger.info('sync end at ' + time.asctime(time.localtime(time.time())))
 
     async def fetch_messages(self):
         self.logger.info('fetch run at ' + time.asctime(time.localtime(time.time())) +

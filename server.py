@@ -92,7 +92,7 @@ if __name__ == '__main__':
     SPN_helper.run()
     NPN_helper.run()
     port = 3000 if debug_mode else 5000
-    http_server = WSGIServer(('', port), app)
+    http_server = WSGIServer(('', port), app, log=None)
     http_server.serve_forever()
     SPN_helper.stop()
     NPN_helper.stop()
