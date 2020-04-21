@@ -165,6 +165,10 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
         self.db_thread = Thread(target=self.run_sync_db_tasks)
 
+    def run(self):
+        super().run()
+        self.db_thread.start()
+
     def load_tokens(self):
         if os.path.isfile(PUBKEY_TOKEN_DB):
             with open(PUBKEY_TOKEN_DB, 'rb') as pubkey_token_db:
