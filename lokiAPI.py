@@ -72,7 +72,41 @@ class LokiAPI:
         self.random_snode_pool = []
         self.get_random_snode()
 
+    def get_swarms(self, pubkeys):
+        print("get swarms for " + str(len(pubkeys)) + " session_ids")
+        if len(self.random_snode_pool) == 0:
+            self.get_random_snode()
+        requests = []
+        proxies = []
+        for pubkey in pubkeys:
+            self.swarm_cache[pubkey] = []
+            random_snode = random.choice(self.random_snode_pool)
+            url = random_snode.address + ':' + random_snode.port + '/storage_rpc/' + apiVersion
+            parameters = {'method': 'get_snodes_for_pubkey',
+                          'params': {
+                              'pubKey': pubkey
+                          }}
+            proxy = LokiSnodeProxy(random_snode, self)
+            requests.append(proxy.request_with_proxy(parameters))
+            proxies.append(proxy)
+        responses = grequests.map(requests)
+        for i in range(len(responses)):
+            result = proxies[i].parse_response(responses[i])
+            if result and result['body']:
+                snodes = json.loads(result['body'])['snodes']
+                for snode in snodes:
+                    address = snode['ip']
+                    if address == '0.0.0.0':
+                        continue
+                    target = LokiAPITarget(address,
+                                           snode['port'],
+                                           snode['pubkey_ed25519'],
+                                           snode['pubkey_x25519'])
+                    self.swarm_cache[pubkeys[i]].append(target)
+        print("get swarms finished, the length is " + str(len(self.swarm_cache.keys())))
+
     def get_swarm(self, pubkey):
+        print("get swarm for " + pubkey)
         if len(self.random_snode_pool) == 0:
             self.get_random_snode()
 
@@ -103,6 +137,7 @@ class LokiAPI:
                 self.swarm_cache[pubkey].append(target)
 
     def get_random_snode(self):
+        print("get random snode")
         target = random.choice(self.seed_node_pool)
         url = target + '/json_rpc'
         parameters = {'method': 'get_n_service_nodes',

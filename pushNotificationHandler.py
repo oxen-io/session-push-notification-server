@@ -179,9 +179,16 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             for token in tokens:
                 self.push_fails[token] = 0
 
+        if os.path.isfile(LAST_HASH_DB):
+            with open(LAST_HASH_DB, 'rb') as last_hash_db:
+                self.last_hash = dict(pickle.load(last_hash_db))
+            last_hash_db.close()
         for pubkey in self.pubkey_token_dict.keys():
-            self.last_hash[pubkey] = {LASTHASH: '',
-                                      EXPIRATION: 0}
+            if pubkey not in self.last_hash.keys():
+                self.last_hash[pubkey] = {LASTHASH: '',
+                                          EXPIRATION: 0}
+
+        self.api.get_swarms(list(self.pubkey_token_dict.keys()))
 
     def update_last_hash(self, pubkey, last_hash, expiration):
         expiration = process_expiration(expiration)
@@ -232,6 +239,9 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             with open(PUBKEY_TOKEN_DB, 'wb') as pubkey_token_db:
                 pickle.dump(self.pubkey_token_dict, pubkey_token_db)
             pubkey_token_db.close()
+            with open(LAST_HASH_DB, 'wb') as last_hash_db:
+                pickle.dump(self.last_hash, last_hash_db)
+            last_hash_db.close()
             self.logger.info('sync end at ' + time.asctime(time.localtime(time.time())))
 
     async def fetch_messages(self):
@@ -257,7 +267,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                     if message_expiration > self.last_hash[pubkey][EXPIRATION]:
                         self.last_hash[pubkey] = {LASTHASH: message['hash'],
                                                   EXPIRATION: message_expiration}
-                    if message_expiration - current_time < 23.9 * 60 * 60 * 1000:
+                    if message_expiration - current_time < 23.8 * 60 * 60 * 1000:
                         continue
                     for token in self.pubkey_token_dict[pubkey]:
                         if is_iOS_device_token(token):
