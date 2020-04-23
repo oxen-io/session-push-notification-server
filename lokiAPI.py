@@ -70,7 +70,18 @@ class LokiAPI:
                                "http://storage.seed2.loki.network:38157",
                                "http://149.56.148.124:38157"]
         self.random_snode_pool = []
+        self.is_ready = False
         self.get_random_snode()
+
+    def initForSwarms(self, session_ids):
+        pubkeys = list(session_ids)
+        while len(pubkeys) > 10:
+            self.get_swarms(pubkeys)
+            for pubkey, swarm in self.swarm_cache.items():
+                if len(swarm) > 0 and pubkey in pubkeys:
+                    pubkeys.remove(pubkey)
+            print("get swarms finished, the length is " + str(len(session_ids) - len(pubkeys)))
+        self.is_ready = True
 
     def get_swarms(self, pubkeys):
         print("get swarms for " + str(len(pubkeys)) + " session_ids")
@@ -93,7 +104,13 @@ class LokiAPI:
         for i in range(len(responses)):
             result = proxies[i].parse_response(responses[i])
             if result and result['body']:
-                snodes = json.loads(result['body'])['snodes']
+                snodes = []
+                try:
+                    body = json.loads(result['body'])
+                    if body and body['snodes']:
+                        snodes = body['snodes']
+                except:
+                    print("error when get snodes for " + pubkeys[i])
                 for snode in snodes:
                     address = snode['ip']
                     if address == '0.0.0.0':
@@ -103,7 +120,6 @@ class LokiAPI:
                                            snode['pubkey_ed25519'],
                                            snode['pubkey_x25519'])
                     self.swarm_cache[pubkeys[i]].append(target)
-        print("get swarms finished, the length is " + str(len(self.swarm_cache.keys())))
 
     def get_swarm(self, pubkey):
         print("get swarm for " + pubkey)
@@ -125,7 +141,13 @@ class LokiAPI:
         for res in response:
             result = proxy.parse_response(res)
         if result and result['body']:
-            snodes = json.loads(result['body'])['snodes']
+            snodes = []
+            try:
+                body = json.loads(result['body'])
+                if body and body['snodes']:
+                    snodes = body['snodes']
+            except:
+                print("error when get snodes for " + pubkey)
             for snode in snodes:
                 address = snode['ip']
                 if address == '0.0.0.0':
@@ -168,8 +190,10 @@ class LokiAPI:
     def get_target_snodes(self, pubkey):
         if pubkey not in self.swarm_cache.keys() or len(self.swarm_cache[pubkey]) < minimumSnodeCount:
             self.swarm_cache[pubkey] = []
-            while len(self.swarm_cache[pubkey]) < minimumSnodeCount:
+            retry = 0
+            while len(self.swarm_cache[pubkey]) < minimumSnodeCount and retry < 3:
                 self.get_swarm(pubkey)
+                retry += 1
         random.shuffle(self.swarm_cache[pubkey])
         return self.swarm_cache[pubkey][:3]
 

@@ -190,7 +190,12 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 self.last_hash[pubkey] = {LASTHASH: '',
                                           EXPIRATION: 0}
 
-        self.api.get_swarms(list(self.pubkey_token_dict.keys()))
+        if os.path.isfile(SWARM_DB):
+            with open(SWARM_DB, 'rb') as swarm_db:
+                self.api.swarm_cache = dict(pickle.load(swarm_db))
+            swarm_db.close()
+
+        self.api.initForSwarms(list(self.pubkey_token_dict.keys()))
 
     def update_last_hash(self, pubkey, last_hash, expiration):
         expiration = process_expiration(expiration)
@@ -244,6 +249,9 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             with open(LAST_HASH_DB, 'wb') as last_hash_db:
                 pickle.dump(self.last_hash, last_hash_db)
             last_hash_db.close()
+            with open(SWARM_DB, 'wb') as swarm_db:
+                pickle.dump(self.api.swarm_cache, swarm_db)
+            swarm_db.close()
             self.logger.info('sync end at ' + time.asctime(time.localtime(time.time())))
 
     async def fetch_messages(self):
@@ -252,6 +260,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         return self.api.fetch_raw_messages(list(self.pubkey_token_dict.keys()), self.last_hash)
 
     async def send_push_notification(self):
+        while not self.api.is_ready:
+            await asyncio.sleep(1)
         self.logger.info('Start to fetch and push')
         while not self.stop_running:
             notifications_iOS = []

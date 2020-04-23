@@ -4,7 +4,6 @@ from const import *
 from gevent.pywsgi import WSGIServer
 from lokiLogger import LokiLogger
 import urllib3
-import logging
 
 urllib3.disable_warnings()
 
