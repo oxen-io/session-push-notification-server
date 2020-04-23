@@ -38,6 +38,7 @@ class PushNotificationHelper:
     def execute_push_Android(self, notifications):
         if len(notifications) == 0:
             return
+        self.logger.info("Push " + str(len(notifications)) + " notifications for Android")
         results = None
         try:
             results = messaging.send_all(messages=notifications, app=self.firebase_app)
@@ -60,6 +61,7 @@ class PushNotificationHelper:
     def execute_push_iOS(self, notifications, priority):
         if len(notifications) == 0:
             return
+        self.logger.info("Push " + str(len(notifications)) + " notifications for iOS")
         results = {}
         try:
             results = self.apns.send_notification_batch(notifications=notifications, topic=BUNDLE_ID, priority=priority)
@@ -259,14 +261,17 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             for pubkey, messages in raw_messages.items():
                 if len(messages) == 0:
                     continue
+                is_last_hash_updated = False
                 for message in messages:
                     if pubkey not in self.pubkey_token_dict.keys():
                         continue
                     message_expiration = process_expiration(message['expiration'])
                     current_time = int(round(time.time() * 1000))
-                    if message_expiration > self.last_hash[pubkey][EXPIRATION]:
+                    if message_expiration >= self.last_hash[pubkey][EXPIRATION]:
                         self.last_hash[pubkey] = {LASTHASH: message['hash'],
                                                   EXPIRATION: message_expiration}
+                        is_last_hash_updated = True
+                        self.logger.info("Update Last Hash for " + pubkey)
                     if message_expiration - current_time < 23.8 * 60 * 60 * 1000:
                         continue
                     for token in self.pubkey_token_dict[pubkey]:
@@ -280,6 +285,11 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                             notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
                                                              token=token)
                             notifications_Android.append(notification)
+                    if len(messages) == 10 and not is_last_hash_updated:
+                        last_message = messages[9]
+                        message_expiration = process_expiration(last_message['expiration'])
+                        self.last_hash[pubkey] = {LASTHASH: last_message['hash'],
+                                                  EXPIRATION: message_expiration}
             self.execute_push_iOS(notifications_iOS, NotificationPriority.Immediate)
             self.execute_push_Android(notifications_Android)
             fetching_time = int(round(time.time())) - start_fetching_time

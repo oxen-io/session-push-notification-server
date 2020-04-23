@@ -9,8 +9,6 @@ import logging
 urllib3.disable_warnings()
 
 app = Flask(__name__)
-flask_logger = logging.getLogger('werkzeug')
-flask_logger.setLevel(logging.ERROR)
 logger = LokiLogger().logger
 SPN_helper = SilentPushNotificationHelper(logger)
 NPN_helper = NormalPushNotificationHelper(logger)
