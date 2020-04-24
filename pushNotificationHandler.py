@@ -243,16 +243,19 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 if self.stop_running:
                     return
             self.logger.info('start to sync to file at ' + time.asctime(time.localtime(time.time())))
-            with open(PUBKEY_TOKEN_DB, 'wb') as pubkey_token_db:
-                pickle.dump(self.pubkey_token_dict, pubkey_token_db)
-            pubkey_token_db.close()
-            with open(LAST_HASH_DB, 'wb') as last_hash_db:
-                pickle.dump(self.last_hash, last_hash_db)
-            last_hash_db.close()
-            with open(SWARM_DB, 'wb') as swarm_db:
-                pickle.dump(self.api.swarm_cache, swarm_db)
-            swarm_db.close()
-            self.logger.info('sync end at ' + time.asctime(time.localtime(time.time())))
+            try:
+                with open(PUBKEY_TOKEN_DB, 'wb') as pubkey_token_db:
+                    pickle.dump(self.pubkey_token_dict, pubkey_token_db)
+                pubkey_token_db.close()
+                with open(LAST_HASH_DB, 'wb') as last_hash_db:
+                    pickle.dump(self.last_hash, last_hash_db)
+                last_hash_db.close()
+                with open(SWARM_DB, 'wb') as swarm_db:
+                    pickle.dump(self.api.swarm_cache, swarm_db)
+                swarm_db.close()
+                self.logger.info('sync end at ' + time.asctime(time.localtime(time.time())))
+            except Exception as e:
+                self.logger.info('sync failed with error ' + str(type(e)))
 
     async def fetch_messages(self):
         self.logger.info('fetch run at ' + time.asctime(time.localtime(time.time())) +
