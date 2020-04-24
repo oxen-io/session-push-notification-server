@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify
 from pushNotificationHandler import SilentPushNotificationHelper, NormalPushNotificationHelper
 from const import *
-from gevent.pywsgi import WSGIServer
 from lokiLogger import LokiLogger
 import urllib3
+from tornado.wsgi import WSGIContainer
+from tornado.httpserver import HTTPServer
+from tornado.ioloop import IOLoop
+
 
 urllib3.disable_warnings()
 
@@ -89,8 +92,9 @@ if __name__ == '__main__':
     SPN_helper.run()
     NPN_helper.run()
     port = 3000 if debug_mode else 5000
-    http_server = WSGIServer(('', port), app, log=None)
-    http_server.serve_forever()
+    http_server = HTTPServer(WSGIContainer(app))
+    http_server.listen(port)
+    IOLoop.instance().start()
     SPN_helper.stop()
     NPN_helper.stop()
 
