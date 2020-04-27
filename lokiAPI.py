@@ -90,7 +90,8 @@ class LokiAPI:
         requests = []
         proxies = []
         for pubkey in pubkeys:
-            self.swarm_cache[pubkey] = []
+            if pubkey not in self.swarm_cache.keys():
+                self.swarm_cache[pubkey] = []
             random_snode = random.choice(self.random_snode_pool)
             url = random_snode.address + ':' + random_snode.port + '/storage_rpc/' + apiVersion
             parameters = {'method': 'get_snodes_for_pubkey',
@@ -120,43 +121,6 @@ class LokiAPI:
                                            snode['pubkey_ed25519'],
                                            snode['pubkey_x25519'])
                     self.swarm_cache[pubkeys[i]].append(target)
-
-    def get_swarm(self, pubkey):
-        print("get swarm for " + pubkey)
-        if len(self.random_snode_pool) == 0:
-            self.get_random_snode()
-
-        if pubkey not in self.swarm_cache.keys():
-            self.swarm_cache[pubkey] = []
-        random_snode = random.choice(self.random_snode_pool)
-        url = random_snode.address + ':' + random_snode.port + '/storage_rpc/' + apiVersion
-        parameters = {'method': 'get_snodes_for_pubkey',
-                      'params': {
-                          'pubKey': pubkey
-                      }}
-        proxy = LokiSnodeProxy(random_snode, self)
-        requests = [proxy.request_with_proxy(parameters)]
-        response = grequests.map(requests)
-        result = None
-        for res in response:
-            result = proxy.parse_response(res)
-        if result and result['body']:
-            snodes = []
-            try:
-                body = json.loads(result['body'])
-                if body and body['snodes']:
-                    snodes = body['snodes']
-            except:
-                print("error when get snodes for " + pubkey)
-            for snode in snodes:
-                address = snode['ip']
-                if address == '0.0.0.0':
-                    continue
-                target = LokiAPITarget(address,
-                                       snode['port'],
-                                       snode['pubkey_ed25519'],
-                                       snode['pubkey_x25519'])
-                self.swarm_cache[pubkey].append(target)
 
     def get_random_snode(self):
         print("get random snode")
@@ -188,12 +152,8 @@ class LokiAPI:
                 self.random_snode_pool.append(target)
 
     def get_target_snodes(self, pubkey):
-        if pubkey not in self.swarm_cache.keys() or len(self.swarm_cache[pubkey]) < minimumSnodeCount:
-            self.swarm_cache[pubkey] = []
-            retry = 0
-            while len(self.swarm_cache[pubkey]) < minimumSnodeCount and retry < 3:
-                self.get_swarm(pubkey)
-                retry += 1
+        if pubkey not in self.swarm_cache.keys():
+            return []
         random.shuffle(self.swarm_cache[pubkey])
         return self.swarm_cache[pubkey][:3]
 
@@ -214,6 +174,12 @@ class LokiAPI:
         return proxies, requests
 
     def fetch_raw_messages(self, pubkey_list, last_hash):
+        swarm_needed_ids = list(pubkey_list)
+        for pubkey, swarm in self.swarm_cache.items():
+            if len(swarm) > 0 and pubkey in swarm_needed_ids:
+                swarm_needed_ids.remove(pubkey)
+        self.get_swarms(swarm_needed_ids)
+
         proxies = []
         requests = []
         messages_dict = {}

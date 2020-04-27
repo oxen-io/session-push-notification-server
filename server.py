@@ -92,7 +92,7 @@ if __name__ == '__main__':
     SPN_helper.run()
     NPN_helper.run()
     port = 3000 if debug_mode else 5000
-    http_server = HTTPServer(WSGIContainer(app))
+    http_server = HTTPServer(WSGIContainer(app), no_keep_alive=True)
     http_server.listen(port)
     IOLoop.instance().start()
     SPN_helper.stop()

@@ -207,7 +207,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
     def update_token_pubkey_pair(self, token, pubkey):
         if pubkey not in self.pubkey_token_dict.keys():
             self.pubkey_token_dict[pubkey] = set()
-            self.api.get_swarm(pubkey)
+            self.api.initForSwarms([pubkey])
         else:
             for key, tokens in self.pubkey_token_dict.items():
                 if key == pubkey and token in tokens:
