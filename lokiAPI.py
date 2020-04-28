@@ -19,13 +19,14 @@ class LokiAPITarget:
 
 
 class LokiSnodeProxy:
-    def __init__(self, target, api):
+    def __init__(self, target, api, session_id):
         self.target = target
         self.random_snode_pool = api.random_snode_pool
         self.private_key_bytes = _curve25519.make_private(get_random_bytes(32))
         self.public_key_bytes = _curve25519.make_public(self.private_key_bytes)
         target_public_key_bytes = bytes.fromhex(target.encryption_key)
         self.symmetric_key = _curve25519.make_shared(self.private_key_bytes, target_public_key_bytes)
+        self.session_id = session_id
 
     def request_with_proxy(self, parameters, header={}):
         proxy = random.choice(self.random_snode_pool)
@@ -42,13 +43,15 @@ class LokiSnodeProxy:
             'X-Sender-Public-Key': self.public_key_bytes.hex(),
             'X-Target-Snode-Key': self.target.id_key
         }
+
         return grequests.post(url,
                               data=iv_and_cipher_text,
                               headers=proxy_request_headers,
                               timeout=defaultTimeout,
-                              verify=False)
+                              verify=False,
+                              callback=self.parse_response)
 
-    def parse_response(self, res):
+    def parse_response(self, res, **kwargs):
         result = None
         if res:
             try:
@@ -60,7 +63,9 @@ class LokiSnodeProxy:
                 result = json.loads(plain_text.decode())
             except Exception as e:
                 print('parse error')
-        return result
+        res.result = result
+        res.session_id = self.session_id
+        return res
 
 
 class LokiAPI:
@@ -88,7 +93,6 @@ class LokiAPI:
         if len(self.random_snode_pool) == 0:
             self.get_random_snode()
         requests = []
-        proxies = []
         for pubkey in pubkeys:
             if pubkey not in self.swarm_cache.keys():
                 self.swarm_cache[pubkey] = []
@@ -98,12 +102,14 @@ class LokiAPI:
                           'params': {
                               'pubKey': pubkey
                           }}
-            proxy = LokiSnodeProxy(random_snode, self)
+            proxy = LokiSnodeProxy(random_snode, self, pubkey)
             requests.append(proxy.request_with_proxy(parameters))
-            proxies.append(proxy)
-        responses = grequests.map(requests)
-        for i in range(len(responses)):
-            result = proxies[i].parse_response(responses[i])
+        responses = grequests.imap(requests)
+        for response in responses:
+            if response is None:
+                continue
+            result = response.result
+            session_id = response.session_id
             if result and result['body']:
                 snodes = []
                 try:
@@ -111,7 +117,7 @@ class LokiAPI:
                     if body and body['snodes']:
                         snodes = body['snodes']
                 except:
-                    print("error when get snodes for " + pubkeys[i])
+                    print("error when get snodes for " + session_id)
                 for snode in snodes:
                     address = snode['ip']
                     if address == '0.0.0.0':
@@ -120,7 +126,7 @@ class LokiAPI:
                                            snode['port'],
                                            snode['pubkey_ed25519'],
                                            snode['pubkey_x25519'])
-                    self.swarm_cache[pubkeys[i]].append(target)
+                    self.swarm_cache[session_id].append(target)
 
     def get_random_snode(self):
         print("get random snode")
@@ -159,7 +165,6 @@ class LokiAPI:
 
     def get_raw_messages(self, pubkey, last_hash):
         target_snodes = self.get_target_snodes(pubkey)
-        proxies = []
         requests = []
         for target_snode in target_snodes:
             url = target_snode.address + ':' + target_snode.port + '/storage_rpc/' + apiVersion
@@ -168,10 +173,9 @@ class LokiAPI:
                               'pubKey': pubkey,
                               'lastHash': last_hash
                           }}
-            proxy = LokiSnodeProxy(target_snode, self)
-            proxies.append(proxy)
+            proxy = LokiSnodeProxy(target_snode, self, pubkey)
             requests.append(proxy.request_with_proxy(parameters))
-        return proxies, requests
+        return requests
 
     def fetch_raw_messages(self, pubkey_list, last_hash):
         swarm_needed_ids = list(pubkey_list)
@@ -180,7 +184,6 @@ class LokiAPI:
                 swarm_needed_ids.remove(pubkey)
         self.get_swarms(swarm_needed_ids)
 
-        proxies = []
         requests = []
         messages_dict = {}
         for pubkey in pubkey_list:
@@ -188,15 +191,14 @@ class LokiAPI:
             hash_value = ""
             if pubkey in last_hash:
                 hash_value = last_hash[pubkey][LASTHASH]
-            prx, req = self.get_raw_messages(pubkey, hash_value)
-            proxies += prx
+            req = self.get_raw_messages(pubkey, hash_value)
             requests += req
-        response = grequests.map(requests)
-        proxy_index = 0
-        for res in response:
-            data = proxies[proxy_index].parse_response(res)
-            pubkey_index = proxy_index // 3
-            proxy_index += 1
+        responses = grequests.imap(requests)
+        for response in responses:
+            if response is None:
+                continue
+            data = response.result
+            session_id = response.session_id
             if data is None or data['body'] is None or len(data['body']) < 3:
                 continue
             try:
@@ -206,14 +208,13 @@ class LokiAPI:
             if not message_json or 'messages' not in dict(message_json).keys():
                 continue
             messages = list(message_json['messages'])
-            old_length = len(messages_dict[pubkey_list[pubkey_index]])
+            old_length = len(messages_dict[session_id])
             new_length = len(messages)
             if old_length == 0:
-                messages_dict[pubkey_list[pubkey_index]] = messages
+                messages_dict[session_id] = messages
             elif new_length > 0:
-                old_expiration = int(messages_dict[pubkey_list[pubkey_index]][old_length - 1]['expiration'])
+                old_expiration = int(messages_dict[session_id][old_length - 1]['expiration'])
                 new_expiration = int(messages[new_length - 1]['expiration'])
                 if new_expiration > old_expiration:
-                    messages_dict[pubkey_list[pubkey_index]] = messages
+                    messages_dict[session_id] = messages
         return messages_dict
-
