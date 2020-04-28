@@ -69,27 +69,28 @@ class LokiSnodeProxy:
 
 
 class LokiAPI:
-    def __init__(self):
+    def __init__(self, logger):
         self.swarm_cache = {}
         self.seed_node_pool = ["http://storage.seed1.loki.network:22023",
                                "http://storage.seed2.loki.network:38157",
                                "http://149.56.148.124:38157"]
         self.random_snode_pool = []
+        self.logger = logger
         self.is_ready = False
         self.get_random_snode()
 
-    def initForSwarms(self, session_ids):
+    def init_for_swarms(self, session_ids):
         pubkeys = list(session_ids)
         while len(pubkeys) > 10:
             self.get_swarms(pubkeys)
             for pubkey, swarm in self.swarm_cache.items():
                 if len(swarm) > 0 and pubkey in pubkeys:
                     pubkeys.remove(pubkey)
-            print("get swarms finished, the length is " + str(len(session_ids) - len(pubkeys)))
+            self.logger.info("get swarms finished, the length is " + str(len(session_ids) - len(pubkeys)))
         self.is_ready = True
 
     def get_swarms(self, pubkeys):
-        print("get swarms for " + str(len(pubkeys)) + " session_ids")
+        self.logger.info("get swarms for " + str(len(pubkeys)) + " session_ids")
         if len(self.random_snode_pool) == 0:
             self.get_random_snode()
         requests = []
@@ -104,7 +105,7 @@ class LokiAPI:
                           }}
             proxy = LokiSnodeProxy(random_snode, self, pubkey)
             requests.append(proxy.request_with_proxy(parameters))
-        responses = grequests.imap(requests)
+        responses = grequests.imap(requests, size=None)
         for response in responses:
             if response is None:
                 continue
@@ -117,7 +118,7 @@ class LokiAPI:
                     if body and body['snodes']:
                         snodes = body['snodes']
                 except:
-                    print("error when get snodes for " + session_id)
+                    self.logger.warn("error when get snodes for " + session_id)
                 for snode in snodes:
                     address = snode['ip']
                     if address == '0.0.0.0':
@@ -143,7 +144,7 @@ class LokiAPI:
                               'pubkey_x25519': True
                           }
                       }}
-        response = grequests.imap([grequests.post(url, json=parameters)])
+        response = grequests.imap([grequests.post(url, json=parameters)], size=None)
         for res in response:
             result = json.loads(res.content.decode())['result']
             snodes = result['service_node_states']
@@ -193,7 +194,7 @@ class LokiAPI:
                 hash_value = last_hash[pubkey][LASTHASH]
             req = self.get_raw_messages(pubkey, hash_value)
             requests += req
-        responses = grequests.imap(requests)
+        responses = grequests.imap(requests, size=None)
         for response in responses:
             if response is None:
                 continue

@@ -160,7 +160,7 @@ class SilentPushNotificationHelper(PushNotificationHelper):
 
 class NormalPushNotificationHelper(PushNotificationHelper):
     def __init__(self, logger):
-        self.api = LokiAPI()
+        self.api = LokiAPI(logger)
         self.pubkey_token_dict = {}
         self.last_hash = {}
         super().__init__(logger)
@@ -172,6 +172,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.db_thread.start()
 
     def load_tokens(self):
+        self.logger.info("start to load tokens")
         if os.path.isfile(PUBKEY_TOKEN_DB):
             with open(PUBKEY_TOKEN_DB, 'rb') as pubkey_token_db:
                 self.pubkey_token_dict = dict(pickle.load(pubkey_token_db))
@@ -181,6 +182,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             for token in tokens:
                 self.push_fails[token] = 0
 
+        self.logger.info("start to load last hash")
         if os.path.isfile(LAST_HASH_DB):
             with open(LAST_HASH_DB, 'rb') as last_hash_db:
                 self.last_hash = dict(pickle.load(last_hash_db))
@@ -190,12 +192,13 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 self.last_hash[pubkey] = {LASTHASH: '',
                                           EXPIRATION: 0}
 
+        self.logger.info("start to load swarms")
         if os.path.isfile(SWARM_DB):
             with open(SWARM_DB, 'rb') as swarm_db:
                 self.api.swarm_cache = dict(pickle.load(swarm_db))
             swarm_db.close()
-
-        self.api.initForSwarms(list(self.pubkey_token_dict.keys()))
+        self.logger.info("finish all loadings")
+        self.api.init_for_swarms(list(self.pubkey_token_dict.keys()))
 
     def update_last_hash(self, pubkey, last_hash, expiration):
         expiration = process_expiration(expiration)
@@ -207,7 +210,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
     def update_token_pubkey_pair(self, token, pubkey):
         if pubkey not in self.pubkey_token_dict.keys():
             self.pubkey_token_dict[pubkey] = set()
-            self.api.initForSwarms([pubkey])
+            self.api.init_for_swarms([pubkey])
         else:
             for key, tokens in self.pubkey_token_dict.items():
                 if key == pubkey and token in tokens:
