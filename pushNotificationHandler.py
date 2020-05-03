@@ -209,6 +209,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
 
     def update_token_pubkey_pair(self, token, pubkey):
         if pubkey not in self.pubkey_token_dict.keys():
+            self.logger.info("New session id registered " + pubkey)
             self.pubkey_token_dict[pubkey] = set()
             self.api.init_for_swarms([pubkey])
         else:
