@@ -64,6 +64,7 @@ class LokiSnodeProxy:
             except Exception as e:
                 print('parse error')
         res.result = result
+        res.target = self.target
         res.session_id = self.session_id
         return res
 
@@ -71,6 +72,7 @@ class LokiSnodeProxy:
 class LokiAPI:
     def __init__(self, logger):
         self.swarm_cache = {}
+        self.messages_dict = {}
         self.seed_node_pool = ["http://storage.seed1.loki.network:22023",
                                "http://storage.seed2.loki.network:38157",
                                "http://149.56.148.124:38157"]
@@ -82,10 +84,10 @@ class LokiAPI:
     def init_for_swarms(self, session_ids):
         pubkeys = list(session_ids)
         while len(pubkeys) > 10:
-            self.get_swarms(pubkeys)
             for pubkey, swarm in self.swarm_cache.items():
                 if len(swarm) > 0 and pubkey in pubkeys:
                     pubkeys.remove(pubkey)
+            self.get_swarms(pubkeys)
             self.logger.info("get swarms finished, the length is " + str(len(session_ids) - len(pubkeys)))
         self.is_ready = True
 
@@ -111,23 +113,26 @@ class LokiAPI:
                 continue
             result = response.result
             session_id = response.session_id
-            if result and result['body']:
-                snodes = []
-                try:
-                    body = json.loads(result['body'])
-                    if body and body['snodes']:
-                        snodes = body['snodes']
-                except:
-                    self.logger.warn("error when get snodes for " + session_id)
-                for snode in snodes:
-                    address = snode['ip']
-                    if address == '0.0.0.0':
-                        continue
-                    target = LokiAPITarget(address,
-                                           snode['port'],
-                                           snode['pubkey_ed25519'],
-                                           snode['pubkey_x25519'])
-                    self.swarm_cache[session_id].append(target)
+            self.handle_swarm_response(result, session_id)
+
+    def handle_swarm_response(self, result, session_id):
+        if result and result['body']:
+            snodes = []
+            try:
+                body = json.loads(result['body'])
+                if body and body['snodes']:
+                    snodes = body['snodes']
+            except:
+                self.logger.warn("error when get snodes for " + session_id)
+            for snode in snodes:
+                address = snode['ip']
+                if address == '0.0.0.0':
+                    continue
+                target = LokiAPITarget(address,
+                                       snode['port'],
+                                       snode['pubkey_ed25519'],
+                                       snode['pubkey_x25519'])
+                self.swarm_cache[session_id].append(target)
 
     def get_random_snode(self):
         print("get random snode")
@@ -158,25 +163,26 @@ class LokiAPI:
                                        snode['pubkey_x25519'])
                 self.random_snode_pool.append(target)
 
-    def get_target_snodes(self, pubkey):
+    def get_target_snodes(self, pubkey, index):
         if pubkey not in self.swarm_cache.keys():
             return []
-        random.shuffle(self.swarm_cache[pubkey])
+        if index == 0:
+            random.shuffle(self.swarm_cache[pubkey])
         return self.swarm_cache[pubkey][:3]
 
-    def get_raw_messages(self, pubkey, last_hash):
-        target_snodes = self.get_target_snodes(pubkey)
-        requests = []
-        for target_snode in target_snodes:
-            url = target_snode.address + ':' + target_snode.port + '/storage_rpc/' + apiVersion
-            parameters = {'method': 'retrieve',
-                          'params': {
-                              'pubKey': pubkey,
-                              'lastHash': last_hash
-                          }}
-            proxy = LokiSnodeProxy(target_snode, self, pubkey)
-            requests.append(proxy.request_with_proxy(parameters))
-        return requests
+    def get_raw_messages(self, pubkey, last_hash, index):
+        target_snodes = self.get_target_snodes(pubkey, index)
+        if index >= len(target_snodes):
+            return None
+        target_snode = target_snodes[index]
+        url = target_snode.address + ':' + target_snode.port + '/storage_rpc/' + apiVersion
+        parameters = {'method': 'retrieve',
+                      'params': {
+                          'pubKey': pubkey,
+                          'lastHash': last_hash
+                      }}
+        proxy = LokiSnodeProxy(target_snode, self, pubkey)
+        return proxy.request_with_proxy(parameters)
 
     def fetch_raw_messages(self, pubkey_list, last_hash):
         swarm_needed_ids = list(pubkey_list)
@@ -184,16 +190,18 @@ class LokiAPI:
             if len(swarm) > 0 and pubkey in swarm_needed_ids:
                 swarm_needed_ids.remove(pubkey)
         self.get_swarms(swarm_needed_ids)
-
         requests = []
-        messages_dict = {}
         for pubkey in pubkey_list:
-            messages_dict[pubkey] = []
-            hash_value = ""
-            if pubkey in last_hash:
-                hash_value = last_hash[pubkey][LASTHASH]
-            req = self.get_raw_messages(pubkey, hash_value)
-            requests += req
+            if pubkey not in self.messages_dict.keys():
+                self.messages_dict[pubkey] = []
+        for index in range(2):
+            for pubkey in pubkey_list:
+                hash_value = ""
+                if pubkey in last_hash:
+                    hash_value = last_hash[pubkey][LASTHASH]
+                req = self.get_raw_messages(pubkey, hash_value, index)
+                if req is not None:
+                    requests.append(req)
         responses = grequests.imap(requests, size=None)
         for response in responses:
             if response is None:
@@ -201,21 +209,24 @@ class LokiAPI:
             data = response.result
             session_id = response.session_id
             if data is None or data['body'] is None or len(data['body']) < 3:
+                self.swarm_cache[session_id].remove(response.target)
                 continue
             try:
                 message_json = json.loads(data['body'], strict=False)
             except Exception:
                 message_json = None
             if not message_json or 'messages' not in dict(message_json).keys():
+                self.logger.warn(session_id + " swarm mapping changed")
+                self.swarm_cache[session_id].remove(response.target)
+                self.handle_swarm_response(data, session_id)
                 continue
             messages = list(message_json['messages'])
-            old_length = len(messages_dict[session_id])
+            old_length = len(self.messages_dict[session_id])
             new_length = len(messages)
             if old_length == 0:
-                messages_dict[session_id] = messages
+                self.messages_dict[session_id] = messages
             elif new_length > 0:
-                old_expiration = int(messages_dict[session_id][old_length - 1]['expiration'])
+                old_expiration = int(self.messages_dict[session_id][old_length - 1]['expiration'])
                 new_expiration = int(messages[new_length - 1]['expiration'])
                 if new_expiration > old_expiration:
-                    messages_dict[session_id] = messages
-        return messages_dict
+                    self.messages_dict[session_id] = messages

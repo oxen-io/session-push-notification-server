@@ -264,7 +264,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
     async def fetch_messages(self):
         self.logger.info('fetch run at ' + time.asctime(time.localtime(time.time())) +
                          ' for ' + str(len(self.pubkey_token_dict.keys())) + ' pubkeys')
-        return self.api.fetch_raw_messages(list(self.pubkey_token_dict.keys()), self.last_hash)
+        self.api.fetch_raw_messages(list(self.pubkey_token_dict.keys()), self.last_hash)
 
     async def send_push_notification(self):
         while not self.api.is_ready:
@@ -273,8 +273,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         while not self.stop_running:
             notifications_iOS = []
             notifications_Android = []
-            start_fetching_time = int(round(time.time()))
-            raw_messages = await self.fetch_messages()
+            await self.fetch_messages()
+            raw_messages = self.api.messages_dict
             for pubkey, messages in raw_messages.items():
                 if len(messages) == 0:
                     continue
@@ -309,12 +309,4 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                                                   EXPIRATION: message_expiration}
             self.execute_push_iOS(notifications_iOS, NotificationPriority.Immediate)
             self.execute_push_Android(notifications_Android)
-            fetching_time = int(round(time.time())) - start_fetching_time
-            waiting_time = 60 - fetching_time
-            if waiting_time < 0:
-                self.logger.warning('Fetching messages over 60 seconds')
-            else:
-                for i in range(waiting_time):
-                    await asyncio.sleep(1)
-                    if self.stop_running:
-                        return
+
