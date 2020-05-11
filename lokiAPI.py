@@ -1,10 +1,5 @@
 import grequests, random, json
-from curve25519 import _curve25519
 from const import *
-from base64 import b64decode
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad, unpad
-from Crypto.Random import get_random_bytes
 
 
 class LokiAPITarget:
@@ -18,49 +13,25 @@ class LokiAPITarget:
         return self.address + ':' + self.port
 
 
-class LokiSnodeProxy:
+class LokiRequestManager:
     def __init__(self, target, api, session_id):
         self.target = target
         self.random_snode_pool = api.random_snode_pool
-        self.private_key_bytes = _curve25519.make_private(get_random_bytes(32))
-        self.public_key_bytes = _curve25519.make_public(self.private_key_bytes)
-        target_public_key_bytes = bytes.fromhex(target.encryption_key)
-        self.symmetric_key = _curve25519.make_shared(self.private_key_bytes, target_public_key_bytes)
         self.session_id = session_id
 
-    def request_with_proxy(self, parameters, header={}):
-        proxy = random.choice(self.random_snode_pool)
-        url = proxy.address + ':' + proxy.port + '/proxy'
-        proxy_request_parameters = {
-            'method': 'POST',
-            'body': json.dumps(parameters),
-            'headers': header
-        }
-        proxy_request_parameters_as_data = json.dumps(proxy_request_parameters).encode()
-        cipher = AES.new(self.symmetric_key, AES.MODE_CBC)
-        iv_and_cipher_text = cipher.iv + cipher.encrypt(pad(proxy_request_parameters_as_data, AES.block_size))
-        proxy_request_headers = {
-            'X-Sender-Public-Key': self.public_key_bytes.hex(),
-            'X-Target-Snode-Key': self.target.id_key
-        }
-
-        return grequests.post(url,
-                              data=iv_and_cipher_text,
-                              headers=proxy_request_headers,
-                              timeout=defaultTimeout,
-                              verify=False,
-                              callback=self.parse_response)
+    def make_request(self, url, parameters):
+        request = grequests.post(url=url,
+                                 json=parameters,
+                                 timeout=defaultTimeout,
+                                 verify=False,
+                                 callback=self.parse_response)
+        return request
 
     def parse_response(self, res, **kwargs):
         result = None
         if res:
             try:
-                cipher_text = bytearray(b64decode(res.content))
-                iv_bytes = cipher_text[:16]
-                cipher_bytes = cipher_text[16:]
-                cipher = AES.new(self.symmetric_key, AES.MODE_CBC, iv=iv_bytes)
-                plain_text = unpad(cipher.decrypt(cipher_bytes), AES.block_size)
-                result = json.loads(plain_text.decode())
+                result = json.loads(res.content.decode())
             except Exception as e:
                 print('parse error')
         res.result = result
@@ -104,8 +75,8 @@ class LokiAPI:
                           'params': {
                               'pubKey': pubkey
                           }}
-            proxy = LokiSnodeProxy(random_snode, self, pubkey)
-            requests.append(proxy.request_with_proxy(parameters))
+            request_manager = LokiRequestManager(random_snode, self, pubkey)
+            requests.append(request_manager.make_request(url, parameters))
         responses = grequests.imap(requests, size=None)
         for response in responses:
             if response is None:
@@ -115,14 +86,8 @@ class LokiAPI:
             self.handle_swarm_response(result, session_id)
 
     def handle_swarm_response(self, result, session_id):
-        if result and result['body']:
-            snodes = []
-            try:
-                body = json.loads(result['body'])
-                if body and body['snodes']:
-                    snodes = body['snodes']
-            except:
-                self.logger.warn("error when get snodes for " + session_id)
+        if result and result['snodes']:
+            snodes = result['snodes']
             for snode in snodes:
                 address = snode['ip']
                 if address == '0.0.0.0':
@@ -133,6 +98,8 @@ class LokiAPI:
                                        snode['pubkey_x25519'])
                 if target not in self.swarm_cache[session_id]:
                     self.swarm_cache[session_id].append(target)
+        else:
+            self.logger.warn("error when get snodes for " + session_id)
 
     def get_random_snode(self):
         print("get random snode")
@@ -181,8 +148,8 @@ class LokiAPI:
                           'pubKey': pubkey,
                           'lastHash': last_hash
                       }}
-        proxy = LokiSnodeProxy(target_snode, self, pubkey)
-        return proxy.request_with_proxy(parameters)
+        request_manager = LokiRequestManager(target_snode, self, pubkey)
+        return request_manager.make_request(url, parameters)
 
     def fetch_raw_messages(self, pubkey_list, last_hash):
         swarm_needed_ids = list(pubkey_list)
@@ -209,13 +176,10 @@ class LokiAPI:
                 continue
             data = response.result
             session_id = response.session_id
-            if data is None or data['body'] is None or len(data['body']) < 3:
+            if data is None:
                 self.swarm_cache[session_id].remove(response.target)
                 continue
-            try:
-                message_json = json.loads(data['body'], strict=False)
-            except Exception:
-                message_json = None
+            message_json = data
             if not message_json or 'messages' not in dict(message_json).keys():
                 self.logger.warn(session_id + " swarm mapping changed")
                 self.swarm_cache[session_id].remove(response.target)
