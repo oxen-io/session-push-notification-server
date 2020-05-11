@@ -72,7 +72,6 @@ class LokiSnodeProxy:
 class LokiAPI:
     def __init__(self, logger):
         self.swarm_cache = {}
-        self.messages_dict = {}
         self.seed_node_pool = ["http://storage.seed1.loki.network:22023",
                                "http://storage.seed2.loki.network:38157",
                                "http://149.56.148.124:38157"]
@@ -132,7 +131,8 @@ class LokiAPI:
                                        snode['port'],
                                        snode['pubkey_ed25519'],
                                        snode['pubkey_x25519'])
-                self.swarm_cache[session_id].append(target)
+                if target not in self.swarm_cache[session_id]:
+                    self.swarm_cache[session_id].append(target)
 
     def get_random_snode(self):
         print("get random snode")
@@ -191,9 +191,10 @@ class LokiAPI:
                 swarm_needed_ids.remove(pubkey)
         self.get_swarms(swarm_needed_ids)
         requests = []
+        messages_dict = {}
         for pubkey in pubkey_list:
-            if pubkey not in self.messages_dict.keys():
-                self.messages_dict[pubkey] = []
+            if pubkey not in messages_dict.keys():
+                messages_dict[pubkey] = []
         for index in range(2):
             for pubkey in pubkey_list:
                 hash_value = ""
@@ -221,12 +222,13 @@ class LokiAPI:
                 self.handle_swarm_response(data, session_id)
                 continue
             messages = list(message_json['messages'])
-            old_length = len(self.messages_dict[session_id])
+            old_length = len(messages_dict[session_id])
             new_length = len(messages)
             if old_length == 0:
-                self.messages_dict[session_id] = messages
+                messages_dict[session_id] = messages
             elif new_length > 0:
-                old_expiration = int(self.messages_dict[session_id][old_length - 1]['expiration'])
+                old_expiration = int(messages_dict[session_id][old_length - 1]['expiration'])
                 new_expiration = int(messages[new_length - 1]['expiration'])
                 if new_expiration > old_expiration:
-                    self.messages_dict[session_id] = messages
+                    messages_dict[session_id] = messages
+        return messages_dict

@@ -264,7 +264,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
     async def fetch_messages(self):
         self.logger.info('fetch run at ' + time.asctime(time.localtime(time.time())) +
                          ' for ' + str(len(self.pubkey_token_dict.keys())) + ' pubkeys')
-        self.api.fetch_raw_messages(list(self.pubkey_token_dict.keys()), self.last_hash)
+        return self.api.fetch_raw_messages(list(self.pubkey_token_dict.keys()), self.last_hash)
 
     async def send_push_notification(self):
         while not self.api.is_ready:
@@ -273,25 +273,19 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         while not self.stop_running:
             notifications_iOS = []
             notifications_Android = []
-            await self.fetch_messages()
-            raw_messages = self.api.messages_dict
+            raw_messages = await self.fetch_messages()
             for pubkey, messages in raw_messages.items():
                 if len(messages) == 0:
                     continue
-                is_last_hash_updated = False
                 for message in messages:
                     if pubkey not in self.pubkey_token_dict.keys():
                         continue
                     message_expiration = process_expiration(message['expiration'])
                     current_time = int(round(time.time() * 1000))
-                    if message_expiration >= self.last_hash[pubkey][EXPIRATION]:
-                        self.last_hash[pubkey] = {LASTHASH: message['hash'],
-                                                  EXPIRATION: message_expiration}
-                        is_last_hash_updated = True
-                        self.logger.info("Update Last Hash for " + pubkey)
                     if message_expiration - current_time < 23.8 * 60 * 60 * 1000:
                         continue
                     for token in self.pubkey_token_dict[pubkey]:
+                        self.logger.info("New PN to " + pubkey)
                         if is_iOS_device_token(token):
                             alert = PayloadAlert(title='Session', body='You\'ve got a new message')
                             payload = Payload(alert=alert, badge=1, sound="default",
@@ -302,11 +296,12 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                             notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
                                                              token=token)
                             notifications_Android.append(notification)
-                    if len(messages) == 10 and not is_last_hash_updated:
-                        last_message = messages[9]
-                        message_expiration = process_expiration(last_message['expiration'])
-                        self.last_hash[pubkey] = {LASTHASH: last_message['hash'],
-                                                  EXPIRATION: message_expiration}
+                last_message = messages[len(messages) - 1]
+                message_expiration = process_expiration(last_message['expiration'])
+                if self.last_hash[pubkey][LASTHASH] != last_message['hash']:
+                    self.logger.info("Update last hash for" + pubkey)
+                    self.last_hash[pubkey] = {LASTHASH: last_message['hash'],
+                                              EXPIRATION: message_expiration}
             self.execute_push_iOS(notifications_iOS, NotificationPriority.Immediate)
             self.execute_push_Android(notifications_Android)
 
