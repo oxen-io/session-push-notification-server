@@ -8,3 +8,5 @@ pycryptodome==3.9.7
 firebase_admin
 peewee==3.13.2
 tornado==6.0.4
+requests-futures==1.0.0
+
