@@ -1,4 +1,7 @@
-import grequests, random, json
+from concurrent.futures import as_completed
+from concurrent.futures import ThreadPoolExecutor
+from requests_futures.sessions import FuturesSession
+import random, json, os
 from const import *
 
 
@@ -15,16 +18,19 @@ class LokiAPITarget:
 
 class LokiRequestManager:
     def __init__(self, target, api, session_id):
+        self.session = api.session
         self.target = target
         self.random_snode_pool = api.random_snode_pool
         self.session_id = session_id
+        self.api = api
 
     def make_request(self, url, parameters):
-        request = grequests.post(url=url,
-                                 json=parameters,
-                                 timeout=defaultTimeout,
-                                 verify=False,
-                                 callback=self.parse_response)
+        request = self.session.post(url=url,
+                                    json=parameters,
+                                    verify=False,
+                                    timeout=defaultTimeout,
+                                    hooks={'response': self.parse_response})
+        request.add_done_callback(self.request_failed)
         return request
 
     def parse_response(self, res, **kwargs):
@@ -39,16 +45,24 @@ class LokiRequestManager:
         res.session_id = self.session_id
         return res
 
+    def request_failed(self, future):
+        try:
+            if future.exception():
+                self.api.swarm_cache[self.session_id].remove(self.target)
+        except:
+            pass
+
 
 class LokiAPI:
     def __init__(self, logger):
         self.swarm_cache = {}
-        self.seed_node_pool = ["http://storage.seed1.loki.network:22023",
-                               "http://storage.seed2.loki.network:38157",
-                               "http://149.56.148.124:38157"]
+        self.seed_node_pool = ["https://storage.seed1.loki.network",
+                               "https://storage.seed3.loki.network",
+                               "https://public.loki.foundation"]
         self.random_snode_pool = []
         self.logger = logger
         self.is_ready = False
+        self.session = FuturesSession(executor=ThreadPoolExecutor(max_workers=os.cpu_count()*330))
         self.get_random_snode()
 
     def init_for_swarms(self, session_ids):
@@ -77,13 +91,16 @@ class LokiAPI:
                           }}
             request_manager = LokiRequestManager(random_snode, self, pubkey)
             requests.append(request_manager.make_request(url, parameters))
-        responses = grequests.imap(requests, size=None)
-        for response in responses:
-            if response is None:
-                continue
-            result = response.result
-            session_id = response.session_id
-            self.handle_swarm_response(result, session_id)
+        for future in as_completed(requests):
+            try:
+                response = future.result()
+                if response is None:
+                    continue
+                result = response.result
+                session_id = response.session_id
+                self.handle_swarm_response(result, session_id)
+            except:
+                pass
 
     def handle_swarm_response(self, result, session_id):
         if result and result['snodes']:
@@ -98,6 +115,7 @@ class LokiAPI:
                                        snode['pubkey_x25519'])
                 if target not in self.swarm_cache[session_id]:
                     self.swarm_cache[session_id].append(target)
+            random.shuffle(self.swarm_cache[session_id])
         else:
             self.logger.warn("error when get snodes for " + session_id)
 
@@ -116,8 +134,8 @@ class LokiAPI:
                               'pubkey_x25519': True
                           }
                       }}
-        response = grequests.imap([grequests.post(url, json=parameters)], size=None)
-        for res in response:
+        try:
+            res = self.session.post(url, json=parameters).result()
             result = json.loads(res.content.decode())['result']
             snodes = result['service_node_states']
             for snode in snodes:
@@ -129,12 +147,14 @@ class LokiAPI:
                                        snode['pubkey_ed25519'],
                                        snode['pubkey_x25519'])
                 self.random_snode_pool.append(target)
+        except Exception:
+            self.logger.warn("Getting random snode failed")
 
     def get_target_snodes(self, pubkey, index):
         if pubkey not in self.swarm_cache.keys():
             return []
-        if index == 0:
-            random.shuffle(self.swarm_cache[pubkey])
+        # if index == 0:
+        #     random.shuffle(self.swarm_cache[pubkey])
         return self.swarm_cache[pubkey][:3]
 
     def get_raw_messages(self, pubkey, last_hash, index):
@@ -162,37 +182,43 @@ class LokiAPI:
         for pubkey in pubkey_list:
             if pubkey not in messages_dict.keys():
                 messages_dict[pubkey] = []
-        for index in range(2):
-            for pubkey in pubkey_list:
-                hash_value = ""
-                if pubkey in last_hash:
-                    hash_value = last_hash[pubkey][LASTHASH]
-                req = self.get_raw_messages(pubkey, hash_value, index)
-                if req is not None:
-                    requests.append(req)
-        responses = grequests.imap(requests, size=None)
-        for response in responses:
-            if response is None:
-                continue
-            data = response.result
-            session_id = response.session_id
-            if data is None:
-                self.swarm_cache[session_id].remove(response.target)
-                continue
-            message_json = data
-            if not message_json or 'messages' not in dict(message_json).keys():
-                self.logger.warn(session_id + " swarm mapping changed")
-                self.swarm_cache[session_id].remove(response.target)
-                self.handle_swarm_response(data, session_id)
-                continue
-            messages = list(message_json['messages'])
-            old_length = len(messages_dict[session_id])
-            new_length = len(messages)
-            if old_length == 0:
-                messages_dict[session_id] = messages
-            elif new_length > 0:
-                old_expiration = int(messages_dict[session_id][old_length - 1]['expiration'])
-                new_expiration = int(messages[new_length - 1]['expiration'])
-                if new_expiration > old_expiration:
-                    messages_dict[session_id] = messages
+            hash_value = ""
+            if pubkey in last_hash:
+                hash_value = last_hash[pubkey][LASTHASH]
+            req = self.get_raw_messages(pubkey, hash_value, 0)
+            if req is not None:
+                requests.append(req)
+        num = 0
+        try:
+            for future in as_completed(requests):
+                num += 1
+                try:
+                    response = future.result(timeout=defaultTimeout)
+                    if response is None:
+                        continue
+                    data = response.result
+                    session_id = response.session_id
+                    if data is None:
+                        self.swarm_cache[session_id].remove(response.target)
+                        continue
+                    message_json = data
+                    if not message_json or 'messages' not in dict(message_json).keys():
+                        self.logger.warn(session_id + " swarm mapping changed")
+                        self.swarm_cache[session_id].remove(response.target)
+                        self.handle_swarm_response(data, session_id)
+                        continue
+                    messages = list(message_json['messages'])
+                    old_length = len(messages_dict[session_id])
+                    new_length = len(messages)
+                    if old_length == 0:
+                        messages_dict[session_id] = messages
+                    elif new_length > 0:
+                        old_expiration = int(messages_dict[session_id][old_length - 1]['expiration'])
+                        new_expiration = int(messages[new_length - 1]['expiration'])
+                        if new_expiration > old_expiration:
+                            messages_dict[session_id] = messages
+                except:
+                    pass
+        except:
+            self.logger.info(str(num) + " requests has been done in 60s")
         return messages_dict

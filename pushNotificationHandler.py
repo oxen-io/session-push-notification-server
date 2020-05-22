@@ -224,6 +224,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.push_fails[token] = 0
         self.last_hash[pubkey] = {LASTHASH: '',
                                   EXPIRATION: 0}
+        self.last_PN_TTL[pubkey] = 0
 
     def remove_invalid_token(self, token):
         for pubkey, tokens in self.pubkey_token_dict.items():
@@ -277,12 +278,18 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             for pubkey, messages in raw_messages.items():
                 if len(messages) == 0:
                     continue
-                for message in messages:
-                    if pubkey not in self.pubkey_token_dict.keys():
-                        continue
+                if pubkey not in self.pubkey_token_dict.keys():
+                    continue
+                hashes = [message["hash"] for message in messages]
+                new_messages = messages.copy()
+                if self.last_hash[pubkey][LASTHASH] in hashes:
+                    index = hashes.index(self.last_hash[pubkey][LASTHASH])
+                    for i in range(index + 1):
+                        new_messages.remove(messages[i])
+                for message in new_messages:
                     message_expiration = process_expiration(message['expiration'])
                     current_time = int(round(time.time() * 1000))
-                    if message_expiration - current_time < 23.8 * 60 * 60 * 1000:
+                    if message_expiration < self.last_hash[pubkey][EXPIRATION] or message_expiration - current_time < 23.9 * 60 * 60 * 1000:
                         continue
                     for token in self.pubkey_token_dict[pubkey]:
                         self.logger.info("New PN to " + pubkey)
@@ -296,11 +303,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                             notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
                                                              token=token)
                             notifications_Android.append(notification)
-                last_message = messages[len(messages) - 1]
-                message_expiration = process_expiration(last_message['expiration'])
-                if self.last_hash[pubkey][LASTHASH] != last_message['hash']:
-                    self.logger.info("Update last hash for" + pubkey)
-                    self.last_hash[pubkey] = {LASTHASH: last_message['hash'],
+                    self.last_hash[pubkey] = {LASTHASH: message['hash'],
                                               EXPIRATION: message_expiration}
             self.execute_push_iOS(notifications_iOS, NotificationPriority.Immediate)
             self.execute_push_Android(notifications_Android)
