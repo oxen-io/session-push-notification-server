@@ -224,11 +224,11 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.push_fails[token] = 0
         self.last_hash[pubkey] = {LASTHASH: '',
                                   EXPIRATION: 0}
-        self.last_PN_TTL[pubkey] = 0
 
     def remove_invalid_token(self, token):
         for pubkey, tokens in self.pubkey_token_dict.items():
             if token in tokens:
+                self.logger.info(pubkey + " unregistered.")
                 self.pubkey_token_dict[pubkey].remove(token)
                 if len(self.pubkey_token_dict[pubkey]) == 0:
                     self.pubkey_token_dict.pop(pubkey)
