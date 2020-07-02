@@ -213,7 +213,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             self.pubkey_token_dict[pubkey] = set()
             self.api.init_for_swarms([pubkey])
         else:
-            for key, tokens in self.pubkey_token_dict.items():
+            for key, tokens in self.pubkey_token_dict.copy().items():
                 if key == pubkey and token in tokens:
                     return
                 if token in tokens:
@@ -226,7 +226,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                                   EXPIRATION: 0}
 
     def remove_invalid_token(self, token):
-        for pubkey, tokens in self.pubkey_token_dict.items():
+        for pubkey, tokens in self.pubkey_token_dict.copy().items():
             if token in tokens:
                 self.logger.info(pubkey + " unregistered.")
                 self.pubkey_token_dict[pubkey].remove(token)
