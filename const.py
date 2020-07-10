@@ -12,6 +12,7 @@ FAIL = 'Fail'
 
 TOKEN_DB = 'token_db'
 PUBKEY_TOKEN_DB = 'token_pubkey_db'
+CLOSED_GROUP_DB = 'closed_group_db'
 LAST_HASH_DB = 'last_hash_db'
 SWARM_DB = 'swarm_db'
 CERT_FILE = 'cert.pem'
