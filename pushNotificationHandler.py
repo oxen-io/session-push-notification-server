@@ -244,9 +244,18 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                     self.pubkey_token_dict.pop(pubkey)
                 break
 
-    def update_closed_group(self, pubkey, members):
-        # TODO:
-        pass
+    def subscribe_closed_group(self, closed_group, pubkey):
+        self.logger.info("New subscriber " + pubkey + " to closed group " + closed_group)
+        if closed_group not in self.closed_group_dict:
+            self.closed_group_dict[closed_group] = set()
+
+        self.closed_group_dict[closed_group].add(pubkey)
+
+    def unsubscribe_closed_group(self, closed_group, pubkey):
+        if closed_group in self.closed_group_dict:
+            if pubkey in self.closed_group_dict[closed_group]:
+                self.logger.info(pubkey + " unsubscribe " + closed_group)
+                self.closed_group_dict[closed_group].remove(pubkey)
 
     async def create_sync_db_tasks(self):
         task = asyncio.create_task(self.sync_to_db())

@@ -90,6 +90,66 @@ def update_last_hash():
     return response
 
 
+@app.route('/subscribe_closed_group', methods=[GET, POST])
+def subscribe_to_closed_group():
+    closed_group = None
+    pubkey = None
+    response = jsonify({CODE: 0,
+                        MSG: PARA_MISSING})
+
+    if PUBKEY in request.args:
+        pubkey = request.args[PUBKEY]
+        if CLOSED_GROUP in request.args:
+            closed_group = request.args[CLOSED_GROUP]
+
+    if request.json and PUBKEY in request.json:
+        pubkey = request.json[PUBKEY]
+        if CLOSED_GROUP in request.json:
+            closed_group = request.json[CLOSED_GROUP]
+
+    if request.form and PUBKEY in request.form:
+        pubkey = request.form[PUBKEY]
+        if CLOSED_GROUP in request.form:
+            closed_group = request.form[CLOSED_GROUP]
+
+    if closed_group and pubkey:
+        NPN_helper.subscribe_closed_group(closed_group, pubkey)
+        response = jsonify({CODE: 1,
+                            MSG: SUCCESS})
+
+    return response
+
+
+@app.route('/unsubscribe_closed_group', methods=[GET, POST])
+def subscribe_to_closed_group():
+    closed_group = None
+    pubkey = None
+    response = jsonify({CODE: 0,
+                        MSG: PARA_MISSING})
+
+    if PUBKEY in request.args:
+        pubkey = request.args[PUBKEY]
+        if CLOSED_GROUP in request.args:
+            closed_group = request.args[CLOSED_GROUP]
+
+    if request.json and PUBKEY in request.json:
+        pubkey = request.json[PUBKEY]
+        if CLOSED_GROUP in request.json:
+            closed_group = request.json[CLOSED_GROUP]
+
+    if request.form and PUBKEY in request.form:
+        pubkey = request.form[PUBKEY]
+        if CLOSED_GROUP in request.form:
+            closed_group = request.form[CLOSED_GROUP]
+
+    if closed_group and pubkey:
+        NPN_helper.unsubscribe_closed_group(closed_group, pubkey)
+        response = jsonify({CODE: 1,
+                            MSG: SUCCESS})
+
+    return response
+
+
 if __name__ == '__main__':
     SPN_helper.run()
     NPN_helper.run()
