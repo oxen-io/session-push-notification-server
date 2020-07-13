@@ -339,7 +339,11 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                         # generate notification for closed groups
                         self.logger.info("New PN to closed group " + pubkey)
                         for member in list(self.closed_group_dict[pubkey]):
+                            if message_expiration < self.last_hash[pubkey + '_' + member][EXPIRATION]:
+                                continue
                             generate_notifications(member)
+                            self.last_hash[pubkey + '_' + member] = {LASTHASH: message['hash'],
+                                                                     EXPIRATION: message_expiration}
                     else:
                         # generate notification for individual
                         self.logger.info("New PN to individual " + pubkey)
