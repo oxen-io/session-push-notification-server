@@ -289,9 +289,9 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 self.logger.info('sync failed with error ' + str(type(e)))
 
     async def fetch_messages(self):
-        self.logger.info('fetch run at ' + time.asctime(time.localtime(time.time())) +
-                         ' for ' + str(len(self.pubkey_token_dict.keys())) + ' pubkeys')
         all_pubkeys = list(self.pubkey_token_dict.keys()) + list(self.closed_group_dict.keys())
+        self.logger.info('fetch run at ' + time.asctime(time.localtime(time.time())) +
+                         ' for ' + str(len(all_pubkeys)) + ' pubkeys')
         return self.api.fetch_raw_messages(all_pubkeys, self.last_hash)
 
     async def send_push_notification(self):
@@ -313,13 +313,16 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             await asyncio.sleep(1)
         self.logger.info('Start to fetch and push')
         while not self.stop_running:
+            for i in range(30):
+                await asyncio.sleep(1)
+
             notifications_iOS = []
             notifications_Android = []
             raw_messages = await self.fetch_messages()
             for pubkey, messages in raw_messages.items():
                 if len(messages) == 0:
                     continue
-                if pubkey not in self.pubkey_token_dict.keys():
+                if pubkey not in self.pubkey_token_dict.keys() and pubkey not in self.closed_group_dict.keys():
                     continue
                 hashes = [message["hash"] for message in messages]
                 new_messages = messages.copy()
@@ -334,12 +337,12 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                         continue
                     if pubkey in self.closed_group_dict.keys():
                         # generate notification for closed groups
-                        self.logger.info("New PN to closed group" + pubkey)
+                        self.logger.info("New PN to closed group " + pubkey)
                         for member in list(self.closed_group_dict[pubkey]):
                             generate_notifications(member)
                     else:
                         # generate notification for individual
-                        self.logger.info("New PN to individual" + pubkey)
+                        self.logger.info("New PN to individual " + pubkey)
                         generate_notifications(pubkey)
                     self.last_hash[pubkey] = {LASTHASH: message['hash'],
                                               EXPIRATION: message_expiration}

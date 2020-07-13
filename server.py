@@ -121,7 +121,7 @@ def subscribe_to_closed_group():
 
 
 @app.route('/unsubscribe_closed_group', methods=[GET, POST])
-def subscribe_to_closed_group():
+def unsubscribe_to_closed_group():
     closed_group = None
     pubkey = None
     response = jsonify({CODE: 0,
