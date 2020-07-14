@@ -164,6 +164,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.api = LokiAPI(logger)
         self.pubkey_token_dict = {}
         self.closed_group_dict = {} # {closed_group_pubkey: [members pubkey]}
+        self.send_timestamps = {}
         self.last_hash = {}
         super().__init__(logger)
         self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
@@ -215,11 +216,18 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         expiration = process_expiration(expiration)
         if len(last_hash) == 0 and '_' in str(pubkey):
             self.logger.info("A message send from " + str(pubkey).split("_")[1] + " to " + str(pubkey).split("_")[0] + " at " + str(expiration))
+            self.update_send_timestamps(pubkey, expiration)
+            return
         if pubkey in self.last_hash.keys():
             if self.last_hash[pubkey][EXPIRATION] >= expiration:
                 return
         self.last_hash[pubkey] = {LASTHASH: last_hash,
                                   EXPIRATION: expiration}
+
+    def update_send_timestamps(self, pubkey, timestamp):
+        if pubkey not in self.send_timestamps.keys():
+            self.send_timestamps[pubkey] = set()
+        self.send_timestamps[pubkey].add(timestamp)
 
     def update_token_pubkey_pair(self, token, pubkey):
         if pubkey not in self.pubkey_token_dict.keys():
@@ -315,6 +323,15 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                                                      token=token)
                     notifications_Android.append(notification)
 
+        def is_send_by_member():
+            flag = False
+            for send_time in self.send_timestamps[key_for_last_hash].copy():
+                if abs(message_expiration - send_time) < 1000:
+                    flag = True
+                    self.send_timestamps[key_for_last_hash].remove(send_time)
+                    break
+            return flag
+
         while not self.api.is_ready:
             await asyncio.sleep(1)
         self.logger.info('Start to fetch and push')
@@ -350,12 +367,16 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                                 continue
                             key_for_last_hash = pubkey + '_' + member
                             if key_for_last_hash in self.last_hash.keys():
-                                if round(message_expiration/1000) <= ceil(self.last_hash[key_for_last_hash][EXPIRATION]/1000):
+                                if message_expiration <= self.last_hash[key_for_last_hash][EXPIRATION]:
+                                    continue
+                            self.last_hash[pubkey + '_' + member] = {LASTHASH: message['hash'],
+                                                                     EXPIRATION: message_expiration}
+                            if key_for_last_hash in self.send_timestamps.keys():
+                                if is_send_by_member():
                                     continue
                             self.logger.info("New PN to closed group " + pubkey + " to member " + member)
                             generate_notifications(member)
-                            self.last_hash[pubkey + '_' + member] = {LASTHASH: message['hash'],
-                                                                     EXPIRATION: message_expiration}
+
                     else:
                         # generate notification for individual
                         self.logger.info("New PN to individual " + pubkey)
