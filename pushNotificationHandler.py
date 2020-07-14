@@ -211,11 +211,14 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.api.init_for_swarms(all_pubkeys)
 
     def update_last_hash(self, pubkey, last_hash, expiration):
+        if len(last_hash) == 0:
+            self.logger.info("A message send from " + str(pubkey).split("_")[1] + " to " + str(pubkey).split("_")[0] + " at " + str(expiration))
         expiration = process_expiration(expiration)
         if pubkey in self.last_hash.keys():
-            if self.last_hash[pubkey][EXPIRATION] < expiration:
-                self.last_hash[pubkey] = {LASTHASH: last_hash,
-                                          EXPIRATION: expiration}
+            if self.last_hash[pubkey][EXPIRATION] >= expiration:
+                return
+        self.last_hash[pubkey] = {LASTHASH: last_hash,
+                                  EXPIRATION: expiration}
 
     def update_token_pubkey_pair(self, token, pubkey):
         if pubkey not in self.pubkey_token_dict.keys():
@@ -248,6 +251,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.logger.info("New subscriber " + pubkey + " to closed group " + closed_group)
         if closed_group not in self.closed_group_dict:
             self.closed_group_dict[closed_group] = set()
+            self.last_hash[closed_group] = {LASTHASH: '',
+                                            EXPIRATION: 0}
 
         self.closed_group_dict[closed_group].add(pubkey)
 
@@ -333,15 +338,18 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 for message in new_messages:
                     message_expiration = process_expiration(message['expiration'])
                     current_time = int(round(time.time() * 1000))
-                    if message_expiration < self.last_hash[pubkey][EXPIRATION] or message_expiration - current_time < 23.9 * 60 * 60 * 1000:
+                    if message_expiration <= self.last_hash[pubkey][EXPIRATION] or message_expiration - current_time < 23.9 * 60 * 60 * 1000:
                         continue
                     if pubkey in self.closed_group_dict.keys():
                         # generate notification for closed groups
-                        self.logger.info("New PN to closed group " + pubkey)
                         for member in list(self.closed_group_dict[pubkey]):
-                            key_for_last_hash = pubkey + '_' + member
-                            if key_for_last_hash in self.last_hash.keys() and message_expiration < self.last_hash[key_for_last_hash][EXPIRATION]:
+                            if member not in self.pubkey_token_dict.keys():
                                 continue
+                            key_for_last_hash = pubkey + '_' + member
+                            if key_for_last_hash in self.last_hash.keys() and message_expiration <= self.last_hash[key_for_last_hash][EXPIRATION]:
+                                self.logger.info(str(message_expiration) + " " + str(self.last_hash[key_for_last_hash][EXPIRATION]))
+                                continue
+                            self.logger.info("New PN to closed group " + pubkey + " to member " + member)
                             generate_notifications(member)
                             self.last_hash[pubkey + '_' + member] = {LASTHASH: message['hash'],
                                                                      EXPIRATION: message_expiration}

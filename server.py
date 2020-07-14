@@ -82,7 +82,7 @@ def update_last_hash():
         if EXPIRATION in request.form:
             expiration = request.form[EXPIRATION]
 
-    if last_hash and pubkey and expiration:
+    if last_hash is not None and pubkey and expiration:
         NPN_helper.update_last_hash(pubkey, last_hash, expiration)
         response = jsonify({CODE: 1,
                             MSG: SUCCESS})
