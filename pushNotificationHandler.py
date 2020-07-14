@@ -8,7 +8,8 @@ from lokiAPI import LokiAPI
 from utils import *
 import firebase_admin
 from firebase_admin import credentials, messaging
-from firebase_admin.exceptions import  *
+from firebase_admin.exceptions import *
+from math import ceil
 
 
 class PushNotificationHelper:
@@ -211,9 +212,9 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.api.init_for_swarms(all_pubkeys)
 
     def update_last_hash(self, pubkey, last_hash, expiration):
-        if len(last_hash) == 0:
-            self.logger.info("A message send from " + str(pubkey).split("_")[1] + " to " + str(pubkey).split("_")[0] + " at " + str(expiration))
         expiration = process_expiration(expiration)
+        if len(last_hash) == 0 and '_' in str(pubkey):
+            self.logger.info("A message send from " + str(pubkey).split("_")[1] + " to " + str(pubkey).split("_")[0] + " at " + str(expiration))
         if pubkey in self.last_hash.keys():
             if self.last_hash[pubkey][EXPIRATION] >= expiration:
                 return
@@ -338,7 +339,9 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 for message in new_messages:
                     message_expiration = process_expiration(message['expiration'])
                     current_time = int(round(time.time() * 1000))
-                    if message_expiration <= self.last_hash[pubkey][EXPIRATION] or message_expiration - current_time < 23.9 * 60 * 60 * 1000:
+                    if message_expiration <= self.last_hash[pubkey][EXPIRATION]:
+                        continue
+                    if message_expiration - current_time < 23.9 * 60 * 60 * 1000:
                         continue
                     if pubkey in self.closed_group_dict.keys():
                         # generate notification for closed groups
@@ -346,9 +349,9 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                             if member not in self.pubkey_token_dict.keys():
                                 continue
                             key_for_last_hash = pubkey + '_' + member
-                            if key_for_last_hash in self.last_hash.keys() and message_expiration <= self.last_hash[key_for_last_hash][EXPIRATION]:
-                                self.logger.info(str(message_expiration) + " " + str(self.last_hash[key_for_last_hash][EXPIRATION]))
-                                continue
+                            if key_for_last_hash in self.last_hash.keys():
+                                if round(message_expiration/1000) <= ceil(self.last_hash[key_for_last_hash][EXPIRATION]/1000):
+                                    continue
                             self.logger.info("New PN to closed group " + pubkey + " to member " + member)
                             generate_notifications(member)
                             self.last_hash[pubkey + '_' + member] = {LASTHASH: message['hash'],
