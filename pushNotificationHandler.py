@@ -270,6 +270,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             if pubkey in self.closed_group_dict[closed_group]:
                 self.logger.info(pubkey + " unsubscribe " + closed_group)
                 self.closed_group_dict[closed_group].remove(pubkey)
+                if len(self.closed_group_dict[closed_group]) == 0:
+                    del self.closed_group_dict[closed_group]
 
     async def create_sync_db_tasks(self):
         task = asyncio.create_task(self.sync_to_db())
