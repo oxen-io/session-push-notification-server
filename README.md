@@ -42,13 +42,8 @@ If the request fails, you will get something like
 }
 ```
 
-#### APNs Provider Loop
-Use [PyAPNs2](https://github.com/Pr0Ger/PyAPNs2) to interact with APNs.  
+#### Push Notification Service Provider
+Use APN for iOS push notifications
+Use [PyAPNs2](https://github.com/Pr0Ger/PyAPNs2) to interact with APNs.
 
-The loop will send requests to APNs every 1 - 3 minutes RANDOMLY to push silent notifications to all the devices that have registered their device tokens to our server.  
-The device tokens are now stored in a local file called `token_db` as a json array.  
-
-#### Notice
-- Silent notifications are not guaranteed to be received by apple devices.
-- To enable silent notifications, users should enable the ```Background App Refresh``` function for ```Loki Messenger``` on their apple devices.
-- ~~To successfully receive silent notifications, ```Loki Messenger``` cannot be totally killed.~~ Actually we can receive silent notifications when the app is totally killed. 
+Use FCM for Android push notifications
