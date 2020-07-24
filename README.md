@@ -44,6 +44,7 @@ If the request fails, you will get something like
 
 #### Push Notification Service Provider
 Use APN for iOS push notifications
+
 Use [PyAPNs2](https://github.com/Pr0Ger/PyAPNs2) to interact with APNs.
 
 Use FCM for Android push notifications
