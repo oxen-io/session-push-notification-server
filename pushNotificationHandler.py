@@ -288,8 +288,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                         new_messages.remove(messages[i])
                 for message in new_messages:
                     message_expiration = process_expiration(message['expiration'])
-                    current_time = int(round(time.time() * 1000))
-                    if message_expiration < self.last_hash[pubkey][EXPIRATION] or message_expiration - current_time < 23.9 * 60 * 60 * 1000:
+                    if not should_notify_for_message(message_expiration):
                         continue
                     for token in self.pubkey_token_dict[pubkey]:
                         self.logger.info("New PN to " + pubkey)
