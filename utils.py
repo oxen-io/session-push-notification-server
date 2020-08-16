@@ -13,6 +13,7 @@ def process_expiration(expiration):
         expiration -= ms_of_a_day
     return expiration
 
+
 def should_notify_for_message(abs_expiration):
     now = int(round(time.time() * 1000))
     day_in_ms = 24 * 60 * 60 * 1000
@@ -20,6 +21,7 @@ def should_notify_for_message(abs_expiration):
     expiration = abs_expiration - now
     return expiration in range(day_in_ms - max_delta_in_ms, day_in_ms) or expiration in range(2 * day_in_ms - max_delta_in_ms, 2 * day_in_ms) \
             or expiration in range(4 * day_in_ms - max_delta_in_ms, 4 * day_in_ms)
+
 
 def is_iOS_device_token(token):
     if len(token) == 64:
