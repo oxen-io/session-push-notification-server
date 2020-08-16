@@ -100,7 +100,7 @@ class LokiAPI:
                 session_id = response.session_id
                 self.handle_swarm_response(result, session_id)
             except Exception as e:
-                self.logger.warn("error when get swarms for " + session_id)
+                self.logger.warn("error when get swarms " + repr(e))
 
     def handle_swarm_response(self, result, session_id):
         if result and result['snodes']:

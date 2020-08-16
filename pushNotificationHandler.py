@@ -289,6 +289,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 for message in new_messages:
                     message_expiration = process_expiration(message['expiration'])
                     if not should_notify_for_message(message_expiration):
+                        self.logger.info("Ignore expired message to " + pubkey)
                         continue
                     for token in self.pubkey_token_dict[pubkey]:
                         self.logger.info("New PN to " + pubkey)
