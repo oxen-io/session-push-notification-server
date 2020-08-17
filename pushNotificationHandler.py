@@ -303,8 +303,11 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                             notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
                                                              token=token)
                             notifications_Android.append(notification)
-                    self.last_hash[pubkey] = {LASTHASH: message['hash'],
-                                              EXPIRATION: message_expiration}
+                if len(new_messages) > 0:
+                    last_message = new_messages[-1]
+                    last_message_expiration = process_expiration(last_message['expiration'])
+                    self.last_hash[pubkey] = {LASTHASH: last_message['hash'],
+                                              EXPIRATION: last_message_expiration}
             self.execute_push_iOS(notifications_iOS, NotificationPriority.Immediate)
             self.execute_push_Android(notifications_Android)
 
