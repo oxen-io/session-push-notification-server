@@ -99,8 +99,8 @@ class LokiAPI:
                 result = response.result
                 session_id = response.session_id
                 self.handle_swarm_response(result, session_id)
-            except:
-                pass
+            except Exception as e:
+                self.logger.warn("error when get swarms " + repr(e))
 
     def handle_swarm_response(self, result, session_id):
         if result and result['snodes']:
@@ -174,7 +174,7 @@ class LokiAPI:
     def fetch_raw_messages(self, pubkey_list, last_hash):
         swarm_needed_ids = list(pubkey_list)
         for pubkey, swarm in self.swarm_cache.items():
-            if len(swarm) > 0 and pubkey in swarm_needed_ids:
+            if len(swarm) > 2 and pubkey in swarm_needed_ids:
                 swarm_needed_ids.remove(pubkey)
         self.get_swarms(swarm_needed_ids)
         requests = []

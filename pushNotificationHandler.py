@@ -16,11 +16,11 @@ class PushNotificationHelper:
     def __init__(self, logger):
         self.apns = APNsClient(CERT_FILE, use_sandbox=debug_mode, use_alternative_port=False)
         self.firebase_app = None
-        self.thread = Thread(target=self.run_tasks)
         self.push_fails = {}
         self.logger = logger
         self.stop_running = False
         self.load_tokens()
+        self.thread = Thread(target=self.run_tasks)
 
     def load_tokens(self):
         # TODO: Setup a DB?
@@ -166,6 +166,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         self.closed_group_dict = {} # {closed_group_pubkey: [members pubkey]}
         self.send_timestamps = {}
         self.last_hash = {}
+        self.pushed_messages = {}
         super().__init__(logger)
         self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
         self.db_thread = Thread(target=self.run_sync_db_tasks)
@@ -196,12 +197,23 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             with open(LAST_HASH_DB, 'rb') as last_hash_db:
                 self.last_hash = dict(pickle.load(last_hash_db))
             last_hash_db.close()
+
+        self.logger.info("start to load pushed messages")
+        if os.path.isfile(PUSHED_MESSAGE_DB):
+            with open(PUSHED_MESSAGE_DB, 'rb') as pushed_message_db:
+                self.pushed_messages = dict(pickle.load(pushed_message_db))
+            pushed_message_db.close()
+
         for pubkey in self.pubkey_token_dict.keys():
             if pubkey not in self.last_hash.keys():
                 self.last_hash[pubkey] = {LASTHASH: '', EXPIRATION: 0}
+            if pubkey not in self.pushed_messages.keys():
+                self.pushed_messages[pubkey] = set()
+
         for closed_group in self.closed_group_dict.keys():
             if closed_group not in self.last_hash.keys():
                 self.last_hash[closed_group] = {LASTHASH: '', EXPIRATION: 0}
+
 
         self.logger.info("start to load swarms")
         if os.path.isfile(SWARM_DB):
@@ -244,6 +256,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
 
         self.pubkey_token_dict[pubkey].add(token)
         self.push_fails[token] = 0
+        self.pushed_messages[pubkey] = set()
         self.last_hash[pubkey] = {LASTHASH: '',
                                   EXPIRATION: 0}
 
@@ -286,6 +299,15 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 await asyncio.sleep(1)
                 if self.stop_running:
                     return
+
+            # remove expired messages
+            now = int(round(time.time() * 1000))
+            for pubkey, messages in self.pushed_messages.items():
+                for message in messages:
+                    message_dict = dict(message)
+                    if message_dict['expiration'] > now:
+                        self.pushed_messages[pubkey].remove(message)
+
             self.logger.info('start to sync to file at ' + time.asctime(time.localtime(time.time())))
             try:
                 with open(PUBKEY_TOKEN_DB, 'wb') as pubkey_token_db:
@@ -297,6 +319,9 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                 with open(LAST_HASH_DB, 'wb') as last_hash_db:
                     pickle.dump(self.last_hash, last_hash_db)
                 last_hash_db.close()
+                with open(PUSHED_MESSAGE_DB) as pushed_message_db:
+                    pickle.dump(self.pushed_messages, pushed_message_db)
+                pushed_message_db.close()
                 with open(SWARM_DB, 'wb') as swarm_db:
                     pickle.dump(self.api.swarm_cache, swarm_db)
                 swarm_db.close()
@@ -313,6 +338,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
     async def send_push_notification(self):
 
         def generate_notifications(session_id):
+
             for token in self.pubkey_token_dict[session_id]:
                 if is_iOS_device_token(token):
                     alert = PayloadAlert(title='Session', body='You\'ve got a new message')
@@ -338,9 +364,6 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             await asyncio.sleep(1)
         self.logger.info('Start to fetch and push')
         while not self.stop_running:
-            for i in range(30):
-                await asyncio.sleep(1)
-
             notifications_iOS = []
             notifications_Android = []
             raw_messages = await self.fetch_messages()
@@ -357,11 +380,16 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                         new_messages.remove(messages[i])
                 for message in new_messages:
                     message_expiration = process_expiration(message['expiration'])
-                    current_time = int(round(time.time() * 1000))
-                    if message_expiration <= self.last_hash[pubkey][EXPIRATION]:
+                    if not should_notify_for_message(message_expiration):
+                        self.logger.info("Ignore message with invalid expiration to " + pubkey)
                         continue
-                    if message_expiration - current_time < 23.9 * 60 * 60 * 1000:
+                    # Python set can only store hashable data structure
+                    # dict is not hashable, but tuple is
+                    message_tuple = tuple(message.items())
+                    if message_tuple in self.pushed_messages[pubkey]:
+                        self.logger.info("Ignore pushed message to " + pubkey)
                         continue
+                    self.pushed_messages[pubkey].add(message_tuple)
                     if pubkey in self.closed_group_dict.keys():
                         # generate notification for closed groups
                         for member in list(self.closed_group_dict[pubkey]):
@@ -378,13 +406,15 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                                     continue
                             self.logger.info("New PN to closed group " + pubkey + " to member " + member)
                             generate_notifications(member)
-
                     else:
                         # generate notification for individual
                         self.logger.info("New PN to individual " + pubkey)
                         generate_notifications(pubkey)
-                    self.last_hash[pubkey] = {LASTHASH: message['hash'],
-                                              EXPIRATION: message_expiration}
+                if len(new_messages) > 0:
+                    last_message = new_messages[-1]
+                    last_message_expiration = process_expiration(last_message['expiration'])
+                    self.last_hash[pubkey] = {LASTHASH: last_message['hash'],
+                                              EXPIRATION: last_message_expiration}
             self.execute_push_iOS(notifications_iOS, NotificationPriority.Immediate)
             self.execute_push_Android(notifications_Android)
 

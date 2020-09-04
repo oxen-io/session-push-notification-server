@@ -16,6 +16,7 @@ PUBKEY_TOKEN_DB = 'token_pubkey_db'
 CLOSED_GROUP_DB = 'closed_group_db'
 LAST_HASH_DB = 'last_hash_db'
 SWARM_DB = 'swarm_db'
+PUSHED_MESSAGE_DB = 'pushed_message_db'
 CERT_FILE = 'cert.pem'
 FIREBASE_TOKEN = 'loki-5a81e-firebase-adminsdk-7plup-0698317995.json'
 # CERT_FILE = 'cert_dev.pem'
@@ -29,5 +30,5 @@ failureThreshold = 2
 apiVersion = 'v1'
 defaultTimeout = 20
 
-debug_mode = False
+debug_mode = True
 
