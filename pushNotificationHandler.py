@@ -282,7 +282,6 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         if closed_group not in self.pushed_messages.keys():
             self.pushed_messages[closed_group] = set()
 
-
     def unsubscribe_closed_group(self, closed_group, pubkey):
         if closed_group in self.closed_group_dict:
             if pubkey in self.closed_group_dict[closed_group]:
@@ -308,7 +307,7 @@ class NormalPushNotificationHelper(PushNotificationHelper):
             # remove expired messages
             now = int(round(time.time() * 1000))
             for pubkey, messages in self.pushed_messages.items():
-                for message in messages:
+                for message in messages.copy():
                     message_dict = dict(message)
                     if message_dict['expiration'] > now:
                         self.pushed_messages[pubkey].remove(message)
