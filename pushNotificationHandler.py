@@ -213,7 +213,8 @@ class NormalPushNotificationHelper(PushNotificationHelper):
         for closed_group in self.closed_group_dict.keys():
             if closed_group not in self.last_hash.keys():
                 self.last_hash[closed_group] = {LASTHASH: '', EXPIRATION: 0}
-
+            if closed_group not in self.pushed_messages.keys():
+                self.pushed_messages[closed_group] = set()
 
         self.logger.info("start to load swarms")
         if os.path.isfile(SWARM_DB):
@@ -277,6 +278,10 @@ class NormalPushNotificationHelper(PushNotificationHelper):
                                             EXPIRATION: 0}
 
         self.closed_group_dict[closed_group].add(pubkey)
+
+        if closed_group not in self.pushed_messages.keys():
+            self.pushed_messages[closed_group] = set()
+
 
     def unsubscribe_closed_group(self, closed_group, pubkey):
         if closed_group in self.closed_group_dict:
