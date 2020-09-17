@@ -3,10 +3,13 @@ POST = 'POST'
 TOKEN = 'token'
 PUBKEY = 'pubKey'
 CLOSED_GROUP = 'closedGroupPublicKey'
-LASTHASH = 'lastHash'
-EXPIRATION = 'expiration'
 CODE = 'code'
 MSG = 'message'
+STATUS = 'status'
+BODY = 'body'
+RESULT = 'result'
+CIPHERTEXT = 'ciphertext'
+EPHEMERAL = 'ephemeral_key'
 PARA_MISSING = 'Missing parameter'
 SUCCESS = 'Success'
 FAIL = 'Fail'
@@ -14,21 +17,11 @@ FAIL = 'Fail'
 TOKEN_DB = 'token_db'
 PUBKEY_TOKEN_DB = 'token_pubkey_db'
 CLOSED_GROUP_DB = 'closed_group_db'
-LAST_HASH_DB = 'last_hash_db'
-SWARM_DB = 'swarm_db'
-PUSHED_MESSAGE_DB = 'pushed_message_db'
 CERT_FILE = 'cert.pem'
+PRIVKEY_FILE = 'x25519-priv.pem'
 FIREBASE_TOKEN = 'loki-5a81e-firebase-adminsdk-7plup-0698317995.json'
-# CERT_FILE = 'cert_dev.pem'
 
 BUNDLE_ID = 'com.loki-project.loki-messenger'
-
-minimumSnodeCount = 2
-targetSnodeCount = 3
-maxRandomSnodePoolSize = 1024
-failureThreshold = 2
-apiVersion = 'v1'
-defaultTimeout = 20
 
 debug_mode = True
 
