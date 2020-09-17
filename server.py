@@ -87,7 +87,7 @@ def notify(args):
 
 
 Routing = {'register': register,
-           'register': unregister,
+           'unregister': unregister,
            'subscribe_to_closed_group': subscribe_to_closed_group,
            'unsubscribe_to_closed_group': unsubscribe_to_closed_group,
            'notify': notify}
