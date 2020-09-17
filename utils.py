@@ -5,18 +5,12 @@ import hashlib
 import os
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
-from const import PRIVKEY_FILE
+from const import PRIVKEY_FILE, NONCE_LENGTH, TAG_LENGTH
 from Crypto.Random import get_random_bytes
-
-IV_LENGTH = 16
-NONCE_LENGTH = 12
-TAG_LENGTH = 16
 
 
 def is_ios_device_token(token):
-    if len(token) == 64:
-        return True
-    return False
+    return len(token) == 64
 
 
 def make_symmetric_key(client_pubkey):

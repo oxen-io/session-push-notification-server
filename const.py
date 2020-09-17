@@ -16,6 +16,9 @@ PARA_MISSING = 'Missing parameter'
 SUCCESS = 'Success'
 FAIL = 'Fail'
 
+NONCE_LENGTH = 12
+TAG_LENGTH = 16
+
 TOKEN_DB = 'token_db'
 PUBKEY_TOKEN_DB = 'token_pubkey_db'
 CLOSED_GROUP_DB = 'closed_group_db'
