@@ -114,9 +114,8 @@ class PushNotificationHelper:
                     del self.closed_group_map[closed_group_id]
 
     # Send PNs #
-    def add_message_to_queue(self, message_string):
+    def add_message_to_queue(self, message):
         try:
-            message = json.loads(message_string)
             if debug_mode:
                 self.logger.info(message)
             self.message_queue.put(message, timeout=5)
@@ -124,6 +123,7 @@ class PushNotificationHelper:
             self.logger.exception("Message queue is full")
         except Exception as e:
             self.logger.exception(e)
+            raise e
 
     async def loop_message_queue(self):
         while not self.stop_running:

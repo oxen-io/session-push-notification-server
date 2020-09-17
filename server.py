@@ -19,99 +19,72 @@ logger = LokiLogger().logger
 PN_helper = PushNotificationHelper(logger)
 
 
-@app.route('/register', methods=[GET, POST])
-def register():
+def register(args):
     device_token = None
     session_id = None
-    response = jsonify({CODE: 0,
-                        MSG: PARA_MISSING})
-
-    if TOKEN in request.args:
-        device_token = request.args[TOKEN]
-        if PUBKEY in request.args:
-            session_id = request.args[PUBKEY]
-
-    if request.json and TOKEN in request.json:
-        device_token = request.json[TOKEN]
-        if PUBKEY in request.json:
-            session_id = request.json[PUBKEY]
-
-    if request.form and TOKEN in request.form:
-        device_token = request.form[TOKEN]
-        if PUBKEY in request.form:
-            session_id = request.form[PUBKEY]
+    if TOKEN in args:
+        device_token = args[TOKEN]
+    if PUBKEY in args:
+        session_id = args[PUBKEY]
 
     if device_token and session_id:
         PN_helper.register(device_token, session_id)
-        response = jsonify({CODE: 1,
-                            MSG: SUCCESS})
     elif device_token:
         PN_helper.unregister(device_token)
-        response = jsonify({CODE: 1,
-                            MSG: SUCCESS})
-    return response
+    else:
+        raise Exception(PARA_MISSING)
 
 
-@app.route('/subscribe_closed_group', methods=[GET, POST])
-def subscribe_to_closed_group():
+def subscribe_to_closed_group(args):
     closed_group_id = None
     session_id = None
-    response = jsonify({CODE: 0,
-                        MSG: PARA_MISSING})
-
-    if PUBKEY in request.args:
-        session_id = request.args[PUBKEY]
-        if CLOSED_GROUP in request.args:
-            closed_group_id = request.args[CLOSED_GROUP]
-
-    if request.json and PUBKEY in request.json:
-        session_id = request.json[PUBKEY]
-        if CLOSED_GROUP in request.json:
-            closed_group_id = request.json[CLOSED_GROUP]
-
-    if request.form and PUBKEY in request.form:
-        session_id = request.form[PUBKEY]
-        if CLOSED_GROUP in request.form:
-            closed_group_id = request.form[CLOSED_GROUP]
+    if PUBKEY in args:
+        session_id = args[PUBKEY]
+    if CLOSED_GROUP in args:
+        closed_group_id = args[CLOSED_GROUP]
 
     if closed_group_id and session_id:
         PN_helper.subscribe_closed_group(closed_group_id, session_id)
-        response = jsonify({CODE: 1,
-                            MSG: SUCCESS})
-    return response
+    else:
+        raise Exception(PARA_MISSING)
 
 
-@app.route('/unsubscribe_closed_group', methods=[GET, POST])
-def unsubscribe_to_closed_group():
+def unsubscribe_to_closed_group(args):
     closed_group_id = None
     session_id = None
-    response = jsonify({CODE: 0,
-                        MSG: PARA_MISSING})
-
-    if PUBKEY in request.args:
+    if PUBKEY in args:
         session_id = request.args[PUBKEY]
-        if CLOSED_GROUP in request.args:
-            closed_group_id = request.args[CLOSED_GROUP]
-
-    if request.json and PUBKEY in request.json:
-        session_id = request.json[PUBKEY]
-        if CLOSED_GROUP in request.json:
-            closed_group_id = request.json[CLOSED_GROUP]
-
-    if request.form and PUBKEY in request.form:
-        session_id = request.form[PUBKEY]
-        if CLOSED_GROUP in request.form:
-            closed_group_id = request.form[CLOSED_GROUP]
+    if CLOSED_GROUP in request.args:
+        closed_group_id = args[CLOSED_GROUP]
 
     if closed_group_id and session_id:
         PN_helper.unsubscribe_closed_group(closed_group_id, session_id)
-        response = jsonify({CODE: 1,
-                            MSG: SUCCESS})
-    return response
+    else:
+        raise Exception(PARA_MISSING)
+
+
+def notify(args):
+    session_id = None
+    data = None
+    if SEND_TO in args:
+        session_id = args[SEND_TO]
+    if DATA in args:
+        data = args[DATA]
+
+    if session_id and data:
+        PN_helper.add_message_to_queue(args)
+    else:
+        raise Exception(PARA_MISSING)
+
+
+Routing = {'register': register,
+           'subscribe_to_closed_group': subscribe_to_closed_group,
+           'unsubscribe_to_closed_group': unsubscribe_to_closed_group,
+           'notify': notify}
 
 
 @app.route('/loki/v1/lsrpc', methods=[POST])
-def onion_reqeust():
+def onion_request():
     ciphertext = None
     ephemeral_pubkey = None
     response = json.dumps({STATUS: 400,
@@ -131,8 +104,9 @@ def onion_reqeust():
     if ciphertext and symmetric_key:
         try:
             parameters = json.loads(decrypt(ciphertext, symmetric_key).decode('utf-8'))
-            if parameters['endpoint'] == 'notify':
-                PN_helper.add_message_to_queue(parameters['body'])
+            args = json.dumps(parameters['body'])
+            func = Routing[parameters['endpoint']]
+            func(args)
             response = json.dumps({STATUS: 200,
                                    BODY: {CODE: 1,
                                           MSG: SUCCESS}})
