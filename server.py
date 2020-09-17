@@ -29,7 +29,16 @@ def register(args):
 
     if device_token and session_id:
         PN_helper.register(device_token, session_id)
-    elif device_token:
+    else:
+        raise Exception(PARA_MISSING)
+
+
+def unregister(args):
+    device_token = None
+    if TOKEN in args:
+        device_token = args[TOKEN]
+
+    if device_token:
         PN_helper.unregister(device_token)
     else:
         raise Exception(PARA_MISSING)
@@ -78,6 +87,7 @@ def notify(args):
 
 
 Routing = {'register': register,
+           'register': unregister,
            'subscribe_to_closed_group': subscribe_to_closed_group,
            'unsubscribe_to_closed_group': unsubscribe_to_closed_group,
            'notify': notify}
