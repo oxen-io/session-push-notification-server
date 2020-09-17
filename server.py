@@ -114,7 +114,7 @@ def onion_request():
     if ciphertext and symmetric_key:
         try:
             parameters = json.loads(decrypt(ciphertext, symmetric_key).decode('utf-8'))
-            args = json.dumps(parameters['body'])
+            args = json.loads(parameters['body'])
             func = Routing[parameters['endpoint']]
             func(args)
             response = json.dumps({STATUS: 200,
