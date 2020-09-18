@@ -44,7 +44,7 @@ def unregister(args):
         raise Exception(PARA_MISSING)
 
 
-def subscribe_to_closed_group(args):
+def subscribe_closed_group(args):
     closed_group_id = None
     session_id = None
     if PUBKEY in args:
@@ -58,7 +58,7 @@ def subscribe_to_closed_group(args):
         raise Exception(PARA_MISSING)
 
 
-def unsubscribe_to_closed_group(args):
+def unsubscribe_closed_group(args):
     closed_group_id = None
     session_id = None
     if PUBKEY in args:
@@ -88,8 +88,8 @@ def notify(args):
 
 Routing = {'register': register,
            'unregister': unregister,
-           'subscribe_to_closed_group': subscribe_to_closed_group,
-           'unsubscribe_to_closed_group': unsubscribe_to_closed_group,
+           'subscribe_closed_group': subscribe_closed_group,
+           'unsubscribe_closed_group': unsubscribe_closed_group,
            'notify': notify}
 
 
