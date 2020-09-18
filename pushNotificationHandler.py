@@ -148,7 +148,8 @@ class PushNotificationHelper:
                         notifications_ios.append(Notification(token=device_token, payload=payload))
                     else:
                         notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
-                                                         token=device_token)
+                                                         token=device_token,
+                                                         android=messaging.AndroidConfig(priority='high'))
                         notifications_android.append(notification)
 
         notifications_ios = []
