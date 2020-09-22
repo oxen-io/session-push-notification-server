@@ -113,6 +113,7 @@ def register_v2(args):
         NPN_helper.update_token_pubkey_pair(device_token, session_id)
         SPN_helper.disable_token(device_token)
     else:
+        logger.info("Onion routing register error")
         raise Exception(PARA_MISSING)
 
 
@@ -127,6 +128,7 @@ def unregister(args):
         SPN_helper.update_token(device_token)
         NPN_helper.disable_token(device_token)
     else:
+        logger.info("Onion routing unregister error")
         raise Exception(PARA_MISSING)
 
 
@@ -141,6 +143,7 @@ def subscribe_closed_group(args):
     if closed_group_id and session_id:
         PN_helper_v2.subscribe_closed_group(closed_group_id, session_id)
     else:
+        logger.info("Onion routing subscribe_closed_group error")
         raise Exception(PARA_MISSING)
 
 
@@ -155,6 +158,7 @@ def unsubscribe_closed_group(args):
     if closed_group_id and session_id:
         PN_helper_v2.unsubscribe_closed_group(closed_group_id, session_id)
     else:
+        logger.info("Onion routing unsubscribe_closed_group error")
         raise Exception(PARA_MISSING)
 
 
