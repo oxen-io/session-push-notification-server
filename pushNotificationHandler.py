@@ -140,6 +140,10 @@ class PushNotificationHelperV2:
 
         def generate_notifications(session_ids):
             for session_id in session_ids:
+                if session_id not in self.device_token_map.keys():
+                    if debug_mode:
+                        self.logger.info('Ignore closed group message to ' + recipient)
+                    continue
                 for device_token in self.device_token_map[session_id]:
                     if is_ios_device_token(device_token):
                         alert = PayloadAlert(title='Session', body='You\'ve got a new message')
