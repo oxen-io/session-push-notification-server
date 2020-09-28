@@ -13,6 +13,7 @@ RESULT = 'result'
 CIPHERTEXT = 'ciphertext'
 EPHEMERAL = 'ephemeral_key'
 PARA_MISSING = 'Missing parameter'
+ENDPOINT_DEPRECATED = 'This endpoint has been deprecated'
 SUCCESS = 'Success'
 FAIL = 'Fail'
 
@@ -29,19 +30,4 @@ FIREBASE_TOKEN = 'loki-5a81e-firebase-adminsdk-7plup-0698317995.json'
 BUNDLE_ID = 'com.loki-project.loki-messenger'
 
 debug_mode = True
-
-# PN approach V1 #
-LASTHASH = 'lastHash'
-EXPIRATION = 'expiration'
-
-PUBKEY_TOKEN_DB = 'token_pubkey_db'
-LAST_HASH_DB = 'last_hash_db'
-SWARM_DB = 'swarm_db'
-
-minimumSnodeCount = 2
-targetSnodeCount = 3
-maxRandomSnodePoolSize = 1024
-failureThreshold = 2
-apiVersion = 'v1'
-defaultTimeout = 10
 
