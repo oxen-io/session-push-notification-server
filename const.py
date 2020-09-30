@@ -29,5 +29,5 @@ FIREBASE_TOKEN = 'loki-5a81e-firebase-adminsdk-7plup-0698317995.json'
 
 BUNDLE_ID = 'com.loki-project.loki-messenger'
 
-debug_mode = True
+debug_mode = False
 
