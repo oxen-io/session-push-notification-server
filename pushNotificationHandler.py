@@ -168,8 +168,12 @@ class PushNotificationHelperV2:
             else:
                 if debug_mode:
                     self.logger.info('Ignore message to ' + recipient)
-        self.execute_push_ios(notifications_ios, NotificationPriority.Immediate)
-        self.execute_push_android(notifications_android)
+        try:
+            self.execute_push_ios(notifications_ios, NotificationPriority.Immediate)
+            self.execute_push_android(notifications_android)
+        except Exception as e:
+            self.logger.info('Something wrong happened when try to push notifications.')
+            self.logger.exception(e)
 
     def execute_push_android(self, notifications):
         if len(notifications) == 0:
