@@ -37,7 +37,7 @@ class PushNotificationHelperV2:
                 self.device_token_map = dict(pickle.load(pubkey_token_db))
             pubkey_token_db.close()
 
-        for tokens in self.device_token_map.values():
+        for tokens in list(self.device_token_map.values()):
             for token in tokens:
                 self.push_fails[token] = 0
 
@@ -50,15 +50,17 @@ class PushNotificationHelperV2:
         self.logger.info("finish all loadings")
 
     def remove_device_token(self, device_token):
-        if device_token in self.push_fails.keys():
+        removed_session_id = 'No session id'
+        if device_token in self.push_fails:
             del self.push_fails[device_token]
-        for session_id, tokens in self.device_token_map.copy().items():
+        for session_id, tokens in self.device_token_map.items():
             if device_token in tokens:
                 self.device_token_map[session_id].remove(device_token)
                 if len(self.device_token_map[session_id]) == 0:
                     self.device_token_map.pop(session_id)
-                return session_id
-        return 'No session id'
+                removed_session_id = session_id
+                break
+        return removed_session_id
 
     # Sync mappings to local file #
     async def sync_to_db(self):
@@ -83,11 +85,11 @@ class PushNotificationHelperV2:
 
     # Registration #
     def register(self, device_token, session_id):
-        if session_id not in self.device_token_map.keys():
+        if session_id not in self.device_token_map:
             self.logger.info("New session id registered " + session_id)
             self.device_token_map[session_id] = set()
         else:
-            for key, tokens in self.device_token_map.copy().items():
+            for key, tokens in self.device_token_map.items():
                 if key == session_id and device_token in tokens:
                     return
                 if device_token in tokens:
@@ -144,6 +146,7 @@ class PushNotificationHelperV2:
                     if debug_mode:
                         self.logger.info('Ignore closed group message to ' + recipient)
                     continue
+                self.logger('New PN to ' + session_id)
                 for device_token in self.device_token_map[session_id]:
                     if is_ios_device_token(device_token):
                         alert = PayloadAlert(title='Session', body='You\'ve got a new message')
@@ -244,14 +247,13 @@ class PushNotificationHelperV2:
 
     # Error handler #
     def handle_fail_result(self, key, result):
-        if key in self.push_fails.keys():
+        if key in self.push_fails:
             self.push_fails[key] += 1
         else:
             self.push_fails[key] = 1
 
         if self.push_fails[key] > 5:
             self.remove_device_token(key)
-            del self.push_fails[key]
         if isinstance(result, tuple):
             reason, info = result
             self.logger.warning("Push fail " + str(reason) + ' ' + str(info))

@@ -100,6 +100,7 @@ def notify(args):
         data = args[DATA]
 
     if session_id and data:
+        logger.info('Notify to ' + session_id)
         PN_helper_v2.add_message_to_queue(args)
     else:
         raise Exception(PARA_MISSING)
