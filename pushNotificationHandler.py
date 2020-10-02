@@ -222,12 +222,24 @@ class PushNotificationHelperV2:
 
     # Tasks #
     async def create_push_notification_task(self):
-        task = asyncio.create_task(self.loop_message_queue())
-        await task
+        while not self.stop_running:
+            try:
+                task = asyncio.create_task(self.loop_message_queue())
+                await task
+            except Exception as e:
+                self.logger.exception(e)
+                self.logger.warning('Push Notification Task has stopped, restart now')
+        self.logger.info('Push Notification Task has stopped')
 
     async def create_sync_to_db_task(self):
-        task = asyncio.create_task(self.sync_to_db())
-        await task
+        while not self.stop_running:
+            try:
+                task = asyncio.create_task(self.sync_to_db())
+                await task
+            except Exception as e:
+                self.logger.exception(e)
+                self.logger.warning('Sync to DB Task has stopped, restart now')
+        self.logger.info('Sync to DB Task has stopped')
 
     def run_push_notification_task(self):
         asyncio.run(self.create_push_notification_task())
