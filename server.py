@@ -80,8 +80,8 @@ def unsubscribe_closed_group(args):
     closed_group_id = None
     session_id = None
     if PUBKEY in args:
-        session_id = request.args[PUBKEY]
-    if CLOSED_GROUP in request.args:
+        session_id = args[PUBKEY]
+    if CLOSED_GROUP in args:
         closed_group_id = args[CLOSED_GROUP]
 
     if closed_group_id and session_id:
