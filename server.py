@@ -7,7 +7,7 @@ from tornado.wsgi import WSGIContainer
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 import resource
-from utils import decrypt, encrypt, make_symmetric_key
+from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler
 import json
 
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
@@ -113,21 +113,16 @@ Routing = {'register': register_v2,
            'notify': notify}
 
 
-@app.route('/loki/v1/lsrpc', methods=[POST])
-def onion_request():
+def onion_request_body_handler(body):
     ciphertext = None
     ephemeral_pubkey = None
     response = json.dumps({STATUS: 400,
                            BODY: {CODE: 0,
                                   MSG: PARA_MISSING}})
-
-    if request.data:
-        body_as_string = request.data.decode('utf-8')
-        body = json.loads(body_as_string)
-        if CIPHERTEXT in body:
-            ciphertext = body[CIPHERTEXT]
-        if EPHEMERAL in body:
-            ephemeral_pubkey = body[EPHEMERAL]
+    if CIPHERTEXT in body:
+        ciphertext = body[CIPHERTEXT]
+    if EPHEMERAL in body:
+        ephemeral_pubkey = body[EPHEMERAL]
 
     symmetric_key = make_symmetric_key(ephemeral_pubkey)
 
@@ -148,6 +143,23 @@ def onion_request():
                                    BODY: {CODE: 0,
                                           MSG: str(e)}})
     return jsonify({RESULT: encrypt(response, symmetric_key)})
+
+
+@app.route('/loki/v2/lsrpc', methods=[POST])
+def onion_request_v2():
+    body = {}
+    if request.data:
+        body = onion_request_data_handler(request.data)
+    return onion_request_body_handler(body)
+
+
+@app.route('/loki/v1/lsrpc', methods=[POST])
+def onion_request():
+    body = {}
+    if request.data:
+        body_as_string = request.data.decode('utf-8')
+        body = json.loads(body_as_string)
+    return onion_request_body_handler(body)
 
 
 if __name__ == '__main__':
