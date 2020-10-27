@@ -9,5 +9,5 @@ firebase_admin
 peewee==3.13.2
 tornado==6.0.4
 requests-futures==1.0.0
-cryptography==2.9.2
+cryptography==3.2
 
