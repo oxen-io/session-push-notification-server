@@ -12,43 +12,47 @@ To start the server, use
 `python server.py`
 
 
-#### RESTful API:
-The server is build with [Flask](https://github.com/pallets/flask) and [gevent](https://github.com/gevent/gevent).  
+The server is build with [Flask](https://github.com/pallets/flask) and [tornado](https://github.com/tornadoweb/tornado).  
+The server uses APN for iOS push notifications, [PyAPNs2](https://github.com/Pr0Ger/PyAPNs2) to interact with APNs, and FCM for Android push notifications.
 
-To send a device token to the server:  
+Right now the server only receives onion requests through the endpoint `/loki/v2/lsrpc`.
+
+The new push notification server works this way:
+- The client (Session Desktop or Mobile app) sends encrypted message data with the recipient's session id to server.
+- The server checks the database to see if the recipient has registered the devices.
+- The server generates and sends the push notification to the devices registered with their tokens.
+
+### Statistics
+There is a new endpoint for statistic data:  `/get_statistics_data`
 - Method: **POST**
-- URL: ```/register```
-- Headers: ```["Content-Type": "application/json"]```
+- Authorization: ```Basic base64(username:password)```
 - Body: 
 ```
+  { 
+    "start_date": "2021-5-4 03:40:00" (optional),
+    "end_date": "2021-5-4 06:00:00" (optional)
+  }
+  ```
+- Response:
+```
 {
-    "token": "XXXXXXXXXXXXXXXXXXX(device token)"
+    "code": 0,
+    "data": [
+        {
+            "android_pn_number": 0,
+            "end_date": "2021-05-04 03:41:47",
+            "ios_pn_number": 0,
+            "start_date": "2021-05-04 03:40:47",
+            "total_message_number": 0
+        },
+        {
+            "android_pn_number": 0,
+            "end_date": "2021-05-04 03:42:47",
+            "ios_pn_number": 0,
+            "start_date": "2021-05-04 03:41:47",
+            "total_message_number": 0
+        }
+    ]
 }
 ```
 
-If the request is successful, you will get a response like this  
-```
-{
-    "code": 1, 
-    "message": "Success"
-}
-```
-
-If the request fails, you will get something like  
-```
-{
-    "code": 0, 
-    "message": "Missing parameter"
-}
-```
-
-#### APNs Provider Loop
-Use [PyAPNs2](https://github.com/Pr0Ger/PyAPNs2) to interact with APNs.  
-
-The loop will send requests to APNs every 1 - 3 minutes RANDOMLY to push silent notifications to all the devices that have registered their device tokens to our server.  
-The device tokens are now stored in a local file called `token_db` as a json array.  
-
-#### Notice
-- Silent notifications are not guaranteed to be received by apple devices.
-- To enable silent notifications, users should enable the ```Background App Refresh``` function for ```Loki Messenger``` on their apple devices.
-- ~~To successfully receive silent notifications, ```Loki Messenger``` cannot be totally killed.~~ Actually we can receive silent notifications when the app is totally killed. 
