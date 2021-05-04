@@ -1,4 +1,6 @@
 from flask import Flask, request, jsonify
+from flask_httpauth import HTTPBasicAuth
+from werkzeug.security import generate_password_hash, check_password_hash
 from pushNotificationHandler import PushNotificationHelperV2
 from const import *
 from lokiLogger import LokiLogger
@@ -7,27 +9,17 @@ from tornado.wsgi import WSGIContainer
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 import resource
-from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler
+from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler, migrate_database_if_needed
 import json
+from databaseHelper import get_data
 
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 urllib3.disable_warnings()
 
 app = Flask(__name__)
+auth = HTTPBasicAuth()
+password_hash = generate_password_hash("your_password")
 logger = LokiLogger().logger
-
-
-# PN approach V1 (DEPRECATED) #
-@app.route('/register', methods=[GET, POST])
-def register():
-    return jsonify({CODE: 1,
-                    MSG: ENDPOINT_DEPRECATED})
-
-
-@app.route('/acknowledge_message_delivery', methods=[GET, POST])
-def update_last_hash():
-    return jsonify({CODE: 1,
-                    MSG: ENDPOINT_DEPRECATED})
 
 
 # PN approach V2 #
@@ -153,16 +145,23 @@ def onion_request_v2():
     return onion_request_body_handler(body)
 
 
-@app.route('/loki/v1/lsrpc', methods=[POST])
-def onion_request():
-    body = {}
-    if request.data:
-        body_as_string = request.data.decode('utf-8')
-        body = json.loads(body_as_string)
-    return onion_request_body_handler(body)
+@auth.verify_password
+def verify_password(username, password):
+    return check_password_hash(password_hash, password)
+
+
+@app.route('/get_statistics_data', methods=[POST])
+@auth.login_required
+def get_statistics_data():
+    if auth.current_user() and request.form:
+        start_date = request.form.get(START_DATE)
+        end_date = request.form.get(END_DATE)
+        return jsonify({CODE: 0,
+                        DATA: get_data(start_date, end_date)})
 
 
 if __name__ == '__main__':
+    migrate_database_if_needed()
     PN_helper_v2.run()
     port = 3000 if debug_mode else 5000
     http_server = HTTPServer(WSGIContainer(app), no_keep_alive=True)

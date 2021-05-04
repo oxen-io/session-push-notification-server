@@ -1,4 +1,5 @@
 Flask==1.1.1
+flask_httpauth
 gevent==1.4.0
 hyper==0.7.0
 jwt==0.6.1
@@ -10,4 +11,5 @@ peewee==3.13.2
 tornado==6.0.4
 requests-futures==1.0.0
 cryptography==2.9.2
-
+urllib3~=1.26.3
+tinydb~=4.4.0

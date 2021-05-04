@@ -8,7 +8,8 @@ from cryptography.hazmat.backends import default_backend
 from const import *
 from Crypto.Random import get_random_bytes
 import json
-import time
+import pickle
+from tinydb import TinyDB
 
 
 def is_ios_device_token(token):
@@ -58,3 +59,25 @@ def onion_request_data_handler(data):
     body = json.loads(body_as_string)
     body[CIPHERTEXT] = b64encode(ciphertext)
     return body
+
+
+def migrate_database_if_needed():
+    db = TinyDB(DATABASE)
+
+    def migrate(old_db_name, new_table_name, json_structure):
+        db_map = None
+        if os.path.isfile(old_db_name):
+            with open(old_db_name, 'rb') as old_db:
+                db_map = dict(pickle.load(old_db))
+            old_db.close()
+        if db_map is not None and len(db_map) > 0:
+            for key, value in db_map.items():
+                item = {}
+                for key_name, value_name in json_structure.items():
+                    item[key_name] = key
+                    item[value_name] = list(value)
+                db.table(new_table_name).insert(item)
+            os.remove(old_db_name)
+
+    migrate(PUBKEY_TOKEN_DB_V2, PUBKEY_TOKEN_TABLE, {PUBKEY: TOKEN})
+    migrate(CLOSED_GROUP_DB, CLOSED_GROUP_TABLE, {CLOSED_GROUP: MEMBERS})
