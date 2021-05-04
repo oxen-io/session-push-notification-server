@@ -112,3 +112,11 @@ venv.bak/
 #Certificates
 *.pem
 *.json
+
+# Logs
+apns.log*
+
+# Database fiel
+*_db*
+
+generate_cert.txt
