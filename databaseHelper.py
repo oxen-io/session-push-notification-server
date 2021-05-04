@@ -16,7 +16,7 @@ class DatabaseModel:
             documents = self.database.search(final_query)
             if len(documents) > 0:
                 self.doc_id = documents[0].doc_id
-                self.from_mapping(documents[0].value)
+                self.from_mapping(documents[0])
                 return True
         return False
 
@@ -50,7 +50,7 @@ class Device(DatabaseModel):
 
     def to_mapping(self):
         return {PUBKEY: self.session_id,
-                TOKEN: self.tokens}
+                TOKEN: list(self.tokens)}
 
 
 class ClosedGroup(DatabaseModel):
@@ -69,7 +69,7 @@ class ClosedGroup(DatabaseModel):
 
     def to_mapping(self):
         return {CLOSED_GROUP: self.closed_group_id,
-                MEMBERS: self.members}
+                MEMBERS: list(self.members)}
 
 
 def get_data(start_date, end_date):

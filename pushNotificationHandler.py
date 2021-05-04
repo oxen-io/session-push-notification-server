@@ -42,7 +42,7 @@ class PushNotificationHelperV2:
                                                           END_DATE: now.strftime(fmt),
                                                           IOS_PN_NUMBER: self.notification_counter_ios,
                                                           ANDROID_PN_NUMBER: self.notification_counter_android,
-                                                          TOTAL_PN_NUMBER: self.total_messages})
+                                                          TOTAL_MESSAGE_NUMBER: self.total_messages})
             self.last_statistics_date = now
             self.notification_counter_ios = 0
             self.notification_counter_android = 0

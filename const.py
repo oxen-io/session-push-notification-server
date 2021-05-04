@@ -20,7 +20,7 @@ START_DATE = 'start_date'
 END_DATE = 'end_date'
 IOS_PN_NUMBER = 'ios_pn_number'
 ANDROID_PN_NUMBER = 'android_pn_number'
-TOTAL_PN_NUMBER = 'total_pn_number'
+TOTAL_MESSAGE_NUMBER = 'total_message_number'
 
 NONCE_LENGTH = 12
 TAG_LENGTH = 16
