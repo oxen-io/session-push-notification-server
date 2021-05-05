@@ -1,6 +1,6 @@
 # Session Push Notification Server
 
-## This is a python script for loki messenger APN service
+## This is a python script for Session remote notification service
 
 #### Use Python 3.7
 #### To run the server:
