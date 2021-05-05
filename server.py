@@ -153,7 +153,7 @@ def verify_password(username, password):
 @app.route('/get_statistics_data', methods=[POST])
 @auth.login_required
 def get_statistics_data():
-    if auth.current_user() and request.form:
+    if auth.current_user():
         start_date = request.form.get(START_DATE)
         end_date = request.form.get(END_DATE)
         return jsonify({CODE: 0,
