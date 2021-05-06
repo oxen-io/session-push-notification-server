@@ -62,4 +62,3 @@ There is a new endpoint for statistics data:  `/get_statistics_data`
     ]
 }
 ```
-
