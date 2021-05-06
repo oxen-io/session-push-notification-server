@@ -1,3 +1,5 @@
+import signal
+
 from flask import Flask, request, jsonify
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -11,7 +13,7 @@ from tornado.ioloop import IOLoop
 import resource
 from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler
 import json
-from databaseHelper import get_data, migrate_database_if_needed
+from databaseHelper import get_data, migrate_database_if_needed, tinyDB
 
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 urllib3.disable_warnings()
@@ -20,6 +22,17 @@ app = Flask(__name__)
 auth = HTTPBasicAuth()
 password_hash = generate_password_hash("^nfe+Lv+2d-2W!B8A+E-rdy^UJmq5#8D")  # your password
 logger = LokiLogger().logger
+loop = IOLoop.instance()
+
+
+def handle_exit(sig, frame):
+    PN_helper_v2.stop()
+    tinyDB.close()
+    loop.stop()
+    raise SystemExit
+
+
+signal.signal(signal.SIGTERM, handle_exit)
 
 
 # PN approach V2 #
@@ -181,5 +194,4 @@ if __name__ == '__main__':
     port = 3000 if debug_mode else 5000
     http_server = HTTPServer(WSGIContainer(app), no_keep_alive=True)
     http_server.listen(port)
-    IOLoop.instance().start()
-    PN_helper_v2.stop()
+    loop.start()
