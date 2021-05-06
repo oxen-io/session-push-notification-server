@@ -18,7 +18,7 @@ urllib3.disable_warnings()
 
 app = Flask(__name__)
 auth = HTTPBasicAuth()
-password_hash = generate_password_hash("^nfe+Lv+2d-2W!B8A+E-rdy^UJmq5#8D")
+password_hash = generate_password_hash("^nfe+Lv+2d-2W!B8A+E-rdy^UJmq5#8D")  # your password
 logger = LokiLogger().logger
 
 
