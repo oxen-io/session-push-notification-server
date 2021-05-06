@@ -154,17 +154,17 @@ def verify_password(username, password):
 @auth.login_required
 def get_statistics_data():
     if auth.current_user():
-        start_date = request.form.get(START_DATE)
-        end_date = request.form.get(END_DATE)
-        total_num_include = request.form.get(TOTAL_MESSAGE_NUMBER)
-        ios_pn_num_include = request.form.get(IOS_PN_NUMBER)
-        android_pn_num_include = request.form.get(ANDROID_PN_NUMBER)
+        start_date = request.json.get(START_DATE)
+        end_date = request.json.get(END_DATE)
+        total_num_include = request.json.get(TOTAL_MESSAGE_NUMBER)
+        ios_pn_num_include = request.json.get(IOS_PN_NUMBER)
+        android_pn_num_include = request.json.get(ANDROID_PN_NUMBER)
         keys_to_remove = []
-        if total_num_include and int(total_num_include) == 0:
+        if total_num_include is not None and int(total_num_include) == 0:
             keys_to_remove.append(TOTAL_MESSAGE_NUMBER)
-        if ios_pn_num_include and int(ios_pn_num_include) == 0:
+        if ios_pn_num_include is not None and int(ios_pn_num_include) == 0:
             keys_to_remove.append(IOS_PN_NUMBER)
-        if android_pn_num_include and int(android_pn_num_include) == 0:
+        if android_pn_num_include is not None and int(android_pn_num_include) == 0:
             keys_to_remove.append(ANDROID_PN_NUMBER)
 
         data = get_data(start_date, end_date)

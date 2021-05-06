@@ -28,7 +28,8 @@ The new push notification server works this way:
 ### Statistics
 There is a new endpoint for statistics data:  `/get_statistics_data`
 - Method: **POST**
-- Authorization: ```Basic base64(username:password)```
+- Authorization: `[Authorization: Basic base64(username:password)]`
+- Header: `[Content-Type: application/json]`
 - Body: ( Note: All fields are optional )
 ```
   { 
