@@ -1,5 +1,4 @@
 import signal
-
 from flask import Flask, request, jsonify
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -18,12 +17,6 @@ from databaseHelper import get_data, migrate_database_if_needed, tinyDB
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 urllib3.disable_warnings()
 
-app = Flask(__name__)
-auth = HTTPBasicAuth()
-password_hash = generate_password_hash("^nfe+Lv+2d-2W!B8A+E-rdy^UJmq5#8D")  # your password
-logger = LokiLogger().logger
-loop = IOLoop.instance()
-
 
 def handle_exit(sig, frame):
     PN_helper_v2.stop()
@@ -32,6 +25,11 @@ def handle_exit(sig, frame):
     raise SystemExit
 
 
+app = Flask(__name__)
+auth = HTTPBasicAuth()
+password_hash = generate_password_hash("^nfe+Lv+2d-2W!B8A+E-rdy^UJmq5#8D")  # your password
+logger = LokiLogger().logger
+loop = IOLoop.instance()
 signal.signal(signal.SIGTERM, handle_exit)
 
 
@@ -194,4 +192,7 @@ if __name__ == '__main__':
     port = 3000 if debug_mode else 5000
     http_server = HTTPServer(WSGIContainer(app), no_keep_alive=True)
     http_server.listen(port)
-    loop.start()
+    try:
+        loop.start()
+    except KeyboardInterrupt:
+        handle_exit(None, None)
