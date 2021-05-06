@@ -18,7 +18,7 @@ urllib3.disable_warnings()
 
 app = Flask(__name__)
 auth = HTTPBasicAuth()
-password_hash = generate_password_hash("your_password")
+password_hash = generate_password_hash("^nfe+Lv+2d-2W!B8A+E-rdy^UJmq5#8D")
 logger = LokiLogger().logger
 
 
@@ -156,8 +156,23 @@ def get_statistics_data():
     if auth.current_user():
         start_date = request.form.get(START_DATE)
         end_date = request.form.get(END_DATE)
+        total_num_include = request.form.get(TOTAL_MESSAGE_NUMBER)
+        ios_pn_num_include = request.form.get(IOS_PN_NUMBER)
+        android_pn_num_include = request.form.get(ANDROID_PN_NUMBER)
+        keys_to_remove = []
+        if total_num_include and int(total_num_include) == 0:
+            keys_to_remove.append(TOTAL_MESSAGE_NUMBER)
+        if ios_pn_num_include and int(ios_pn_num_include) == 0:
+            keys_to_remove.append(IOS_PN_NUMBER)
+        if android_pn_num_include and int(android_pn_num_include) == 0:
+            keys_to_remove.append(ANDROID_PN_NUMBER)
+
+        data = get_data(start_date, end_date)
+        for item in data:
+            for key in keys_to_remove:
+                item.pop(key, None)
         return jsonify({CODE: 0,
-                        DATA: get_data(start_date, end_date)})
+                        DATA: data})
 
 
 if __name__ == '__main__':
