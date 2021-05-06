@@ -3,6 +3,10 @@ from tinydb import TinyDB, where, Query
 from datetime import datetime
 import pickle
 import os
+from tinydb.storages import JSONStorage
+from tinydb.middlewares import CachingMiddleware
+
+tinyDB = TinyDB(DATABASE, storage=CachingMiddleware(JSONStorage))
 
 
 class DatabaseModel:
@@ -37,8 +41,8 @@ class DatabaseModel:
 
 
 class Device(DatabaseModel):
-    def __init__(self, database, doc_id=None, session_id=None, tokens=None):
-        super().__init__(database.table(PUBKEY_TOKEN_TABLE), doc_id)
+    def __init__(self, doc_id=None, session_id=None, tokens=None):
+        super().__init__(tinyDB.table(PUBKEY_TOKEN_TABLE), doc_id)
         if session_id:
             self.session_id = session_id
             documents = self.database.search(where(PUBKEY) == session_id)
@@ -56,8 +60,8 @@ class Device(DatabaseModel):
 
 
 class ClosedGroup(DatabaseModel):
-    def __init__(self, database, doc_id=None, closed_group_id=None, members=None):
-        super().__init__(database.table(CLOSED_GROUP_TABLE), doc_id)
+    def __init__(self, doc_id=None, closed_group_id=None, members=None):
+        super().__init__(tinyDB.table(CLOSED_GROUP_TABLE), doc_id)
         if closed_group_id:
             self.closed_group_id = closed_group_id
             documents = self.database.search(where(CLOSED_GROUP) == closed_group_id)
@@ -75,8 +79,6 @@ class ClosedGroup(DatabaseModel):
 
 
 def migrate_database_if_needed():
-    db = TinyDB(DATABASE)
-
     def migrate(old_db_name, new_table_name, json_structure):
         db_map = None
         if os.path.isfile(old_db_name):
@@ -91,15 +93,25 @@ def migrate_database_if_needed():
                     item[key_name] = key
                     item[value_name] = list(value)
                 items.append(item)
-            db.table(new_table_name).insert_multiple(items)
+            tinyDB.table(new_table_name).insert_multiple(items)
             os.remove(old_db_name)
 
     migrate(PUBKEY_TOKEN_DB_V2, PUBKEY_TOKEN_TABLE, {PUBKEY: TOKEN})
     migrate(CLOSED_GROUP_DB, CLOSED_GROUP_TABLE, {CLOSED_GROUP: MEMBERS})
 
 
+def store_data(last_statistics_date, now, ios_pn_number, android_pn_number, total_message_number):
+    db = tinyDB.table(STATISTICS_TABLE)
+    fmt = "%Y-%m-%d %H:%M:%S"
+    db.insert({START_DATE: last_statistics_date.strftime(fmt),
+               END_DATE: now.strftime(fmt),
+               IOS_PN_NUMBER: ios_pn_number,
+               ANDROID_PN_NUMBER: android_pn_number,
+               TOTAL_MESSAGE_NUMBER: total_message_number})
+
+
 def get_data(start_date, end_date):
-    database = TinyDB(DATABASE).table(STATISTICS_TABLE)
+    db = tinyDB.table(STATISTICS_TABLE)
 
     def try_to_convert_datetime(date_str):
         formats = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
@@ -116,9 +128,9 @@ def get_data(start_date, end_date):
 
     data_query = Query()
     if start_date and end_date:
-        return database.search(data_query[START_DATE].test(test_func, start_date, True) &
-                               data_query[END_DATE].test(test_func, end_date, False))
+        return db.search(data_query[START_DATE].test(test_func, start_date, True) &
+                         data_query[END_DATE].test(test_func, end_date, False))
     elif start_date:
-        return database.search(data_query[START_DATE].test(test_func, start_date, True))
+        return db.search(data_query[START_DATE].test(test_func, start_date, True))
     else:
-        return database.all()
+        return db.all()

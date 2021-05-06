@@ -9,8 +9,6 @@ import firebase_admin
 from firebase_admin import credentials, messaging
 from firebase_admin.exceptions import *
 from databaseHelper import *
-from tinydb.storages import JSONStorage
-from tinydb.middlewares import CachingMiddleware
 
 
 # PN approach V2 #
@@ -19,7 +17,6 @@ class PushNotificationHelperV2:
     def __init__(self, logger):
         self.apns = APNsClient(CERT_FILE, use_sandbox=debug_mode, use_alternative_port=False)
         self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
-        self.database = TinyDB(DATABASE, storage=CachingMiddleware(JSONStorage))
         self.message_queue = Queue()
         self.push_fails = {}
         self.logger = logger
@@ -32,19 +29,15 @@ class PushNotificationHelperV2:
 
     # Statistics #
     def store_data_if_needed(self):
-        fmt = "%Y-%m-%d %H:%M:%S"
         now = datetime.now()
         time_diff = now - self.last_statistics_date
         if time_diff.total_seconds() >= 12 * 60 * 60:
-            self.logger.info(f"Store data at {now.strftime(fmt)}:\n" +
+            self.logger.info(f"Store data at {now}:\n" +
                              f"iOS push notification number: {self.notification_counter_ios}\n" +
                              f"Android push notification number: {self.notification_counter_android}\n" +
                              f"Total message number: {self.total_messages}\n")
-            self.database.table(STATISTICS_TABLE).insert({START_DATE: self.last_statistics_date.strftime(fmt),
-                                                          END_DATE: now.strftime(fmt),
-                                                          IOS_PN_NUMBER: self.notification_counter_ios,
-                                                          ANDROID_PN_NUMBER: self.notification_counter_android,
-                                                          TOTAL_MESSAGE_NUMBER: self.total_messages})
+            store_data(self.last_statistics_date, now,
+                       self.notification_counter_ios, self.notification_counter_android, self.total_messages)
             self.last_statistics_date = now
             self.notification_counter_ios = 0
             self.notification_counter_android = 0
@@ -52,7 +45,7 @@ class PushNotificationHelperV2:
 
     # Registration #
     def remove_device_token(self, device_token):
-        device = Device(self.database)
+        device = Device()
         if device.find([where(TOKEN).any(device_token)]):
             device.tokens.remove(device_token)
             device.save()
@@ -60,13 +53,13 @@ class PushNotificationHelperV2:
         return "No session id"
 
     def register(self, device_token, session_id):
-        device = Device(self.database)
+        device = Device()
         # When an existed device creates a new session id
         if device.find([where(TOKEN).any(device_token)]):
             device.tokens.remove(device_token)
             device.save()
             # We should create a new record if the token no longer belongs to the old session id
-            device = Device(self.database)
+            device = Device()
 
         # When there is no record for either the session id or the token
         if not device.find([where(PUBKEY) == session_id]):
@@ -83,7 +76,7 @@ class PushNotificationHelperV2:
 
     def subscribe_closed_group(self, closed_group_id, session_id):
         self.logger.info(f"New subscriber {session_id} to closed group {closed_group_id}.")
-        closed_group = ClosedGroup(self.database)
+        closed_group = ClosedGroup()
         if not closed_group.find([where(CLOSED_GROUP) == closed_group_id]):
             closed_group.closed_group_id = closed_group_id
 
@@ -91,7 +84,7 @@ class PushNotificationHelperV2:
         closed_group.save()
 
     def unsubscribe_closed_group(self, closed_group_id, session_id):
-        closed_group = ClosedGroup(self.database)
+        closed_group = ClosedGroup()
         if closed_group.find([where(CLOSED_GROUP) == closed_group_id, where(MEMBERS).any(session_id)]):
             self.logger.info(f"{session_id} unsubscribe {closed_group_id}.")
             closed_group.members.remove(session_id)
@@ -125,7 +118,7 @@ class PushNotificationHelperV2:
 
         def generate_notifications(session_ids):
             for session_id in session_ids:
-                device = Device(self.database)
+                device = Device()
                 if not device.find([where(PUBKEY) == session_id]):
                     if debug_mode:
                         self.logger.info(f'Ignore closed group message to {recipient}.')
@@ -149,8 +142,8 @@ class PushNotificationHelperV2:
         notifications_android = []
         for message in messages_wait_to_push:
             recipient = message['send_to']
-            closed_group = ClosedGroup(self.database)
-            if Device(self.database).find([where(PUBKEY) == recipient]):
+            closed_group = ClosedGroup()
+            if Device().find([where(PUBKEY) == recipient]):
                 generate_notifications([recipient])
             elif closed_group.find([where(CLOSED_GROUP) == recipient]):
                 generate_notifications(closed_group.members)
