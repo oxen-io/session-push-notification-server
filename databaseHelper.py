@@ -75,10 +75,17 @@ class ClosedGroup(DatabaseModel):
 def get_data(start_date, end_date):
     database = TinyDB(DATABASE).table(STATISTICS_TABLE)
 
+    def try_to_convert_datetime(date_str):
+        formats = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+        for fmt in formats:
+            try:
+                return datetime.strptime(date_str, fmt)
+            except ValueError:
+                pass
+
     def test_func(val, date_str, ascending):
-        fmt = "%Y-%m-%d %H:%M:%S"
-        date_1 = datetime.strptime(val, fmt)
-        date_2 = datetime.strptime(date_str, fmt)
+        date_1 = try_to_convert_datetime(val)
+        date_2 = try_to_convert_datetime(date_str)
         return date_1 > date_2 if ascending else date_1 < date_2
 
     data_query = Query()
