@@ -9,9 +9,9 @@ from tornado.wsgi import WSGIContainer
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 import resource
-from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler, migrate_database_if_needed
+from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler
 import json
-from databaseHelper import get_data
+from databaseHelper import get_data, migrate_database_if_needed
 
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 urllib3.disable_warnings()

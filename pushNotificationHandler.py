@@ -9,6 +9,8 @@ import firebase_admin
 from firebase_admin import credentials, messaging
 from firebase_admin.exceptions import *
 from databaseHelper import *
+from tinydb.storages import JSONStorage
+from tinydb.middlewares import CachingMiddleware
 
 
 # PN approach V2 #
@@ -17,7 +19,7 @@ class PushNotificationHelperV2:
     def __init__(self, logger):
         self.apns = APNsClient(CERT_FILE, use_sandbox=debug_mode, use_alternative_port=False)
         self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
-        self.database = TinyDB(DATABASE)
+        self.database = TinyDB(DATABASE, storage=CachingMiddleware(JSONStorage))
         self.message_queue = Queue()
         self.push_fails = {}
         self.logger = logger
