@@ -155,7 +155,7 @@ def get_data(start_date, end_date):
 
 
 def get_device(session_id):
-    device = device_cache.get(session_id)
+    device = device_cache.get(session_id, None)
     if device is None:
         device = Device()
         if device.find([where(PUBKEY) == session_id]):
@@ -166,7 +166,7 @@ def get_device(session_id):
 
 
 def get_closed_group(closed_group_id):
-    closed_group = closed_group_cache.get(closed_group_id)
+    closed_group = closed_group_cache.get(closed_group_id, None)
     if closed_group is None:
         closed_group = ClosedGroup()
         if closed_group.find([where(CLOSED_GROUP) == closed_group_id]):
