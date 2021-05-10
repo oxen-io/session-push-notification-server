@@ -12,7 +12,7 @@ from tornado.ioloop import IOLoop
 import resource
 from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler
 import json
-from databaseHelper import get_data, migrate_database_if_needed, tinyDB
+from databaseHelper import get_data, migrate_database_if_needed, tinyDB, load_cache
 
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 urllib3.disable_warnings()
@@ -188,6 +188,7 @@ def get_statistics_data():
 
 if __name__ == '__main__':
     migrate_database_if_needed()
+    load_cache()
     PN_helper_v2.run()
     port = 3000 if debug_mode else 5000
     http_server = HTTPServer(WSGIContainer(app), no_keep_alive=True)

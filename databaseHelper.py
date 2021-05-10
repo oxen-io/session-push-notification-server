@@ -7,6 +7,8 @@ from tinydb.storages import JSONStorage
 from tinydb.middlewares import CachingMiddleware
 
 tinyDB = TinyDB(DATABASE, storage=CachingMiddleware(JSONStorage))
+device_cache = {}  # {session_id: Device}
+closed_group_cache = {}  # {closed_group_id: ClosedGroup}
 
 
 class DatabaseModel:
@@ -78,6 +80,22 @@ class ClosedGroup(DatabaseModel):
                 MEMBERS: list(self.members)}
 
 
+def load_cache():
+    device_table = tinyDB.table(PUBKEY_TOKEN_TABLE)
+    devices = device_table.all()
+    for device_mapping in devices:
+        device = Device()
+        device.from_mapping(device_mapping)
+        device_cache[device.session_id] = device
+
+    closed_group_table = tinyDB.table(CLOSED_GROUP_TABLE)
+    closed_groups = closed_group_table.all()
+    for closed_group_mapping in closed_groups:
+        closed_group = ClosedGroup()
+        closed_group.from_mapping(closed_group_mapping)
+        closed_group_cache[closed_group.closed_group_id] = closed_group
+
+
 def migrate_database_if_needed():
     def migrate(old_db_name, new_table_name, json_structure):
         db_map = None
@@ -134,3 +152,25 @@ def get_data(start_date, end_date):
         return db.search(data_query[START_DATE].test(test_func, start_date, True))
     else:
         return db.all()
+
+
+def get_device(session_id):
+    device = device_cache.get(session_id)
+    if device is None:
+        device = Device()
+        if device.find([where(PUBKEY) == session_id]):
+            device_cache[session_id] = device
+        else:
+            return None
+    return device
+
+
+def get_closed_group(closed_group_id):
+    closed_group = closed_group_cache.get(closed_group_id)
+    if closed_group is None:
+        closed_group = ClosedGroup()
+        if closed_group.find([where(CLOSED_GROUP) == closed_group_id]):
+            closed_group_cache[closed_group_id] = closed_group
+        else:
+            return None
+    return closed_group

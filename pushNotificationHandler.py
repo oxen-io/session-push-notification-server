@@ -118,34 +118,32 @@ class PushNotificationHelperV2:
 
         def generate_notifications(session_ids):
             for session_id in session_ids:
-                device = Device()
-                if not device.find([where(PUBKEY) == session_id]):
-                    if debug_mode:
-                        self.logger.info(f'Ignore closed group message to {recipient}.')
-                    continue
-                self.logger.info(f'New PN to {session_id}.')
-                for device_token in device.tokens:
-                    if is_ios_device_token(device_token):
-                        alert = PayloadAlert(title='Session', body='You\'ve got a new message')
-                        payload = Payload(alert=alert, badge=1, sound="default",
-                                          mutable_content=True, category="SECRET",
-                                          custom={'ENCRYPTED_DATA': message['data']})
-                        notifications_ios.append(Notification(token=device_token, payload=payload))
-                    else:
-                        notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
-                                                         token=device_token,
-                                                         android=messaging.AndroidConfig(priority='high'))
-                        notifications_android.append(notification)
+                device_for_push = get_device(session_id)
+                if device_for_push:
+                    self.logger.info(f'New PN to {session_id}.')
+                    for device_token in device.tokens:
+                        if is_ios_device_token(device_token):
+                            alert = PayloadAlert(title='Session', body='You\'ve got a new message')
+                            payload = Payload(alert=alert, badge=1, sound="default",
+                                              mutable_content=True, category="SECRET",
+                                              custom={'ENCRYPTED_DATA': message['data']})
+                            notifications_ios.append(Notification(token=device_token, payload=payload))
+                        else:
+                            notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
+                                                             token=device_token,
+                                                             android=messaging.AndroidConfig(priority='high'))
+                            notifications_android.append(notification)
 
         self.total_messages += len(messages_wait_to_push)
         notifications_ios = []
         notifications_android = []
         for message in messages_wait_to_push:
             recipient = message['send_to']
-            closed_group = ClosedGroup()
-            if Device().find([where(PUBKEY) == recipient]):
+            device = get_device(recipient)
+            closed_group = get_closed_group(recipient)
+            if device:
                 generate_notifications([recipient])
-            elif closed_group.find([where(CLOSED_GROUP) == recipient]):
+            elif closed_group:
                 generate_notifications(closed_group.members)
             else:
                 if debug_mode:
