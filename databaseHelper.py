@@ -60,6 +60,10 @@ class Device(DatabaseModel):
         return {PUBKEY: self.session_id,
                 TOKEN: list(self.tokens)}
 
+    def save(self):
+        super().save()
+        device_cache[self.session_id] = self
+
 
 class ClosedGroup(DatabaseModel):
     def __init__(self, doc_id=None, closed_group_id=None, members=None):
@@ -78,6 +82,10 @@ class ClosedGroup(DatabaseModel):
     def to_mapping(self):
         return {CLOSED_GROUP: self.closed_group_id,
                 MEMBERS: list(self.members)}
+
+    def save(self):
+        super().save()
+        closed_group_cache[self.closed_group_id] = self
 
 
 def load_cache():

@@ -106,7 +106,6 @@ class PushNotificationHelperV2:
         while not self.stop_running:
             self.send_push_notification()
             self.store_data_if_needed()
-            await asyncio.sleep(1)
 
     def send_push_notification(self):
         if self.message_queue.empty() or self.stop_running:
