@@ -58,12 +58,12 @@ class PushNotificationHelperV2:
         if device.find([where(TOKEN).any(device_token)]):
             device.tokens.remove(device_token)
             device.save()
-            # We should create a new record if the token no longer belongs to the old session id
-            device = Device()
 
+        device = device_cache.get(session_id)
         # When there is no record for either the session id or the token
-        if not device.find([where(PUBKEY) == session_id]):
+        if device is None:
             self.logger.info(f"New session id registered {session_id}.")
+            device = Device()
             device.session_id = session_id
 
         # When an existed session id adds a new device

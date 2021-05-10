@@ -12,8 +12,8 @@ closed_group_cache = {}  # {closed_group_id: ClosedGroup}
 
 
 class DatabaseModel:
-    def __init__(self, database, doc_id=None):
-        self.database = database
+    def __init__(self, table, doc_id=None):
+        self.table = table
         self.doc_id = doc_id
 
     def find(self, queries):
@@ -21,7 +21,7 @@ class DatabaseModel:
         for query in queries:
             final_query = final_query & query if final_query else query
         if final_query:
-            documents = self.database.search(final_query)
+            documents = tinyDB.table(self.table).search(final_query)
             if len(documents) > 0:
                 self.doc_id = documents[0].doc_id
                 self.from_mapping(documents[0])
@@ -37,17 +37,17 @@ class DatabaseModel:
     def save(self):
         mapping = self.to_mapping()
         if self.doc_id:
-            self.database.update(mapping, doc_ids=[self.doc_id])
+            tinyDB.table(self.table).update(mapping, doc_ids=[self.doc_id])
         else:
-            self.doc_id = self.database.insert(mapping)
+            self.doc_id = tinyDB.table(self.table).insert(mapping)
 
 
 class Device(DatabaseModel):
     def __init__(self, doc_id=None, session_id=None, tokens=None):
-        super().__init__(tinyDB.table(PUBKEY_TOKEN_TABLE), doc_id)
+        super().__init__(PUBKEY_TOKEN_TABLE, doc_id)
         if session_id:
             self.session_id = session_id
-            documents = self.database.search(where(PUBKEY) == session_id)
+            documents = tinyDB.table(self.table).search(where(PUBKEY) == session_id)
             if len(documents) > 0:
                 self.doc_id = documents[0].doc_id
         self.tokens = set(tokens) if tokens else set()
@@ -67,10 +67,10 @@ class Device(DatabaseModel):
 
 class ClosedGroup(DatabaseModel):
     def __init__(self, doc_id=None, closed_group_id=None, members=None):
-        super().__init__(tinyDB.table(CLOSED_GROUP_TABLE), doc_id)
+        super().__init__(CLOSED_GROUP_TABLE, doc_id)
         if closed_group_id:
             self.closed_group_id = closed_group_id
-            documents = self.database.search(where(CLOSED_GROUP) == closed_group_id)
+            documents = tinyDB.table(self.table).search(where(CLOSED_GROUP) == closed_group_id)
             if len(documents) > 0:
                 self.doc_id = documents[0].doc_id
         self.members = set(members) if members else set()
