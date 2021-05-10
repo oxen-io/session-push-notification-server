@@ -45,21 +45,19 @@ class PushNotificationHelperV2:
 
     # Registration #
     def remove_device_token(self, device_token):
-        device = Device()
-        if device.find([where(TOKEN).any(device_token)]):
-            device.tokens.remove(device_token)
-            device.save()
-            return device.session_id
+        if device_token in self.push_fails.keys():
+            del self.push_fails[device_token]
+        for session_id, device in device_cache.items():
+            if device_token in device.tokens:
+                device.tokens.remove(device_token)
+                device.save()
+                return device.session_id
         return "No session id"
 
     def register(self, device_token, session_id):
-        device = Device()
-        # When an existed device creates a new session id
-        if device.find([where(TOKEN).any(device_token)]):
-            device.tokens.remove(device_token)
-            device.save()
+        self.remove_device_token(device_token)
 
-        device = device_cache.get(session_id)
+        device = get_device(session_id)
         # When there is no record for either the session id or the token
         if device is None:
             self.logger.info(f"New session id registered {session_id}.")
