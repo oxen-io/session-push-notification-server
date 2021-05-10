@@ -121,7 +121,7 @@ class PushNotificationHelperV2:
                 device_for_push = get_device(session_id)
                 if device_for_push:
                     self.logger.info(f'New PN to {session_id}.')
-                    for device_token in device.tokens:
+                    for device_token in device_for_push.tokens:
                         if is_ios_device_token(device_token):
                             alert = PayloadAlert(title='Session', body='You\'ve got a new message')
                             payload = Payload(alert=alert, badge=1, sound="default",
