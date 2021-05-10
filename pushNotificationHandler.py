@@ -22,6 +22,7 @@ class PushNotificationHelperV2:
         self.logger = logger
         self.stop_running = False
         self.thread = Thread(target=self.run_push_notification_task)
+        self.db_thread = Thread(target=self.run_sync_to_db_task)
         self.last_statistics_date = datetime.now()
         self.total_messages = 0
         self.notification_counter_ios = 0
@@ -87,6 +88,15 @@ class PushNotificationHelperV2:
             self.logger.info(f"{session_id} unsubscribe {closed_group_id}.")
             closed_group.members.remove(session_id)
             closed_group.save()
+
+    # Sync mappings to local file #
+    async def sync_to_db(self):
+        while not self.stop_running:
+            for i in range(600):
+                await asyncio.sleep(1)
+                if self.stop_running:
+                    return
+            flush()
 
     # Send PNs #
     def add_message_to_queue(self, message):
@@ -208,17 +218,26 @@ class PushNotificationHelperV2:
                 self.logger.warning('Push Notification Task has stopped, restart now.')
         self.logger.info('Push Notification Task has stopped.')
 
+    async def create_sync_to_db_task(self):
+        task = asyncio.create_task(self.sync_to_db())
+        await task
+
     def run_push_notification_task(self):
         asyncio.run(self.create_push_notification_task())
+
+    def run_sync_to_db_task(self):
+        asyncio.run(self.create_sync_to_db_task())
 
     def run(self):
         self.logger.info(f'{self.__class__.__name__} start running...')
         self.stop_running = False
         self.thread.start()
+        self.db_thread.start()
 
     def stop(self):
         self.logger.info(f'{self.__class__.__name__} stop running...')
         self.stop_running = True
+        flush()
 
     # Error handler #
     def handle_fail_result(self, key, result):

@@ -34,7 +34,7 @@ class DatabaseModel:
     def to_mapping(self):
         pass
 
-    def save(self):
+    def save_to_db(self):
         mapping = self.to_mapping()
         if self.doc_id:
             tinyDB.table(self.table).update(mapping, doc_ids=[self.doc_id])
@@ -61,7 +61,6 @@ class Device(DatabaseModel):
                 TOKEN: list(self.tokens)}
 
     def save(self):
-        super().save()
         device_cache[self.session_id] = self
 
 
@@ -84,7 +83,6 @@ class ClosedGroup(DatabaseModel):
                 MEMBERS: list(self.members)}
 
     def save(self):
-        super().save()
         closed_group_cache[self.closed_group_id] = self
 
 
@@ -102,6 +100,13 @@ def load_cache():
         closed_group = ClosedGroup()
         closed_group.from_mapping(closed_group_mapping)
         closed_group_cache[closed_group.closed_group_id] = closed_group
+
+
+def flush():
+    for device in device_cache.values():
+        device.save_to_db()
+    for closed_group in closed_group_cache.values():
+        closed_group.save_to_db()
 
 
 def migrate_database_if_needed():
@@ -163,22 +168,8 @@ def get_data(start_date, end_date):
 
 
 def get_device(session_id):
-    device = device_cache.get(session_id, None)
-    if device is None:
-        device = Device()
-        if device.find([where(PUBKEY) == session_id]):
-            device_cache[session_id] = device
-        else:
-            return None
-    return device
+    return device_cache.get(session_id, None)
 
 
 def get_closed_group(closed_group_id):
-    closed_group = closed_group_cache.get(closed_group_id, None)
-    if closed_group is None:
-        closed_group = ClosedGroup()
-        if closed_group.find([where(CLOSED_GROUP) == closed_group_id]):
-            closed_group_cache[closed_group_id] = closed_group
-        else:
-            return None
-    return closed_group
+    return closed_group_cache.get(closed_group_id, None)
