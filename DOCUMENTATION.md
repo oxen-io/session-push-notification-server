@@ -78,6 +78,7 @@
     "end_date": Date String formated "%Y-%m-%d %H:%M:%S" or "%Y-%m-%d",
     "ios_pn_number": Boolean,
     "android_pn_number": Boolean,
+    "closed_group_message_number": Boolean
     "total_message_number": Boolean
   }
   ```
@@ -91,6 +92,7 @@
             "end_date": Date String formated "%Y-%m-%d %H:%M:%S",
             "ios_pn_number": Number,
             "android_pn_number": Number,
+            "closed_group_message_number": Number,
             "total_message_number": Number
         },
     ]

@@ -21,6 +21,7 @@ END_DATE = 'end_date'
 IOS_PN_NUMBER = 'ios_pn_number'
 ANDROID_PN_NUMBER = 'android_pn_number'
 TOTAL_MESSAGE_NUMBER = 'total_message_number'
+CLOSED_GROUP_MESSAGE_NUMBER = 'closed_group_message_number'
 
 NONCE_LENGTH = 12
 TAG_LENGTH = 16

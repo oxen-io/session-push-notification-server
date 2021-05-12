@@ -27,6 +27,7 @@ class PushNotificationHelperV2:
         self.total_messages = 0
         self.notification_counter_ios = 0
         self.notification_counter_android = 0
+        self.closed_group_messages = 0
 
     # Statistics #
     def store_data_if_needed(self):
@@ -36,13 +37,16 @@ class PushNotificationHelperV2:
             self.logger.info(f"Store data at {now}:\n" +
                              f"iOS push notification number: {self.notification_counter_ios}\n" +
                              f"Android push notification number: {self.notification_counter_android}\n" +
+                             f"Closed group message number: {self.closed_group_messages}\n" +
                              f"Total message number: {self.total_messages}\n")
             store_data(self.last_statistics_date, now,
-                       self.notification_counter_ios, self.notification_counter_android, self.total_messages)
+                       self.notification_counter_ios, self.notification_counter_android,
+                       self.total_messages, self.closed_group_messages)
             self.last_statistics_date = now
             self.notification_counter_ios = 0
             self.notification_counter_android = 0
             self.total_messages = 0
+            self.closed_group_messages = 0
 
     # Registration #
     def remove_device_token(self, device_token):
@@ -152,6 +156,7 @@ class PushNotificationHelperV2:
             if device:
                 generate_notifications([recipient])
             elif closed_group:
+                self.closed_group_messages += 1
                 generate_notifications(closed_group.members)
             else:
                 if debug_mode:

@@ -131,14 +131,15 @@ def migrate_database_if_needed():
     migrate(CLOSED_GROUP_DB, CLOSED_GROUP_TABLE, {CLOSED_GROUP: MEMBERS})
 
 
-def store_data(last_statistics_date, now, ios_pn_number, android_pn_number, total_message_number):
+def store_data(last_statistics_date, now, ios_pn_number, android_pn_number, total_message_number, closed_group_message_number):
     db = tinyDB.table(STATISTICS_TABLE)
     fmt = "%Y-%m-%d %H:%M:%S"
     db.insert({START_DATE: last_statistics_date.strftime(fmt),
                END_DATE: now.strftime(fmt),
                IOS_PN_NUMBER: ios_pn_number,
                ANDROID_PN_NUMBER: android_pn_number,
-               TOTAL_MESSAGE_NUMBER: total_message_number})
+               TOTAL_MESSAGE_NUMBER: total_message_number,
+               CLOSED_GROUP_MESSAGE_NUMBER: closed_group_message_number})
 
 
 def get_data(start_date, end_date):

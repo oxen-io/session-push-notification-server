@@ -29,6 +29,7 @@ The new push notification server works this way:
 
 The server will store some statistics data every 12 hours for analysing the traffic going through. The data includes:
 - The number of messages sent to the server
+- The number of messages sent to closed groups
 - The number of push notifications sent to iOS devices
 - The number of push notifications sent to Android devices
 

@@ -170,6 +170,7 @@ def get_statistics_data():
         total_num_include = request.json.get(TOTAL_MESSAGE_NUMBER)
         ios_pn_num_include = request.json.get(IOS_PN_NUMBER)
         android_pn_num_include = request.json.get(ANDROID_PN_NUMBER)
+        closed_group_message_include = request.json.get(CLOSED_GROUP_MESSAGE_NUMBER)
         keys_to_remove = []
         if total_num_include is not None and int(total_num_include) == 0:
             keys_to_remove.append(TOTAL_MESSAGE_NUMBER)
@@ -177,6 +178,8 @@ def get_statistics_data():
             keys_to_remove.append(IOS_PN_NUMBER)
         if android_pn_num_include is not None and int(android_pn_num_include) == 0:
             keys_to_remove.append(ANDROID_PN_NUMBER)
+        if closed_group_message_include is not None and int(closed_group_message_include) == 0:
+            keys_to_remove.append(CLOSED_GROUP_MESSAGE_NUMBER)
 
         data = get_data(start_date, end_date)
         for item in data:
