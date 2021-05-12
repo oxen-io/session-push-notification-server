@@ -2,6 +2,8 @@
 
 ## This is a python script for Session remote notification service
 
+[API Documentation](https://github.com/oxen-io/session-push-notification-server/blob/master/DOCUMENTATION.md)
+
 #### Use Python 3.7
 #### To run the server:
 Use `pip install -r requirements.txt` to install all the requirements first.
@@ -25,40 +27,9 @@ The new push notification server works this way:
 - The server checks the database to see if the recipients has registered their devices.
 - The server generates and sends the push notification to the devices registered with their tokens.
 
-### Statistics
-There is a new endpoint for statistics data:  `/get_statistics_data`
-- Method: **POST**
-- Authorization: `[Authorization: Basic base64(username:password)]`
-- Header: `[Content-Type: application/json]`
-- Body: ( Note: All fields are optional )
-```
-  { 
-    "start_date": "2021-5-4 03:40:00",
-    "end_date": "2021-5-4 06:00:00",
-    "ios_pn_number": 1,
-    "android_pn_number": 1,
-    "total_message_number": 1
-  }
-  ```
-- Response:
-```
-{
-    "code": 0,
-    "data": [
-        {
-            "android_pn_number": 0,
-            "end_date": "2021-05-04 03:41:47",
-            "ios_pn_number": 0,
-            "start_date": "2021-05-04 03:40:47",
-            "total_message_number": 0
-        },
-        {
-            "android_pn_number": 0,
-            "end_date": "2021-05-04 03:42:47",
-            "ios_pn_number": 0,
-            "start_date": "2021-05-04 03:41:47",
-            "total_message_number": 0
-        }
-    ]
-}
-```
+The server will store some statistics data every 12 hours for analysing the traffic going through. The data includes:
+- The number of messages sent to the server
+- The number of push notifications sent to iOS devices
+- The number of push notifications sent to Android devices
+
+There is also an endpoint `/get_statistics_data` to get the data above.
