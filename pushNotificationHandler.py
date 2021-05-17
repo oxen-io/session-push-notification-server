@@ -100,7 +100,10 @@ class PushNotificationHelperV2:
                 await asyncio.sleep(1)
                 if self.stop_running:
                     return
+            self.logger.info("Start to sync to DB.")
+            self.store_data_if_needed()
             flush()
+            self.logger.info("End of flush.")
 
     # Send PNs #
     def add_message_to_queue(self, message):
@@ -117,7 +120,6 @@ class PushNotificationHelperV2:
     async def loop_message_queue(self):
         while not self.stop_running:
             self.send_push_notification()
-            self.store_data_if_needed()
             await asyncio.sleep(0.5)
 
     def send_push_notification(self):

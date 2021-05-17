@@ -3,10 +3,8 @@ from tinydb import TinyDB, where, Query
 from datetime import datetime
 import pickle
 import os
-from tinydb.storages import JSONStorage
-from tinydb.middlewares import CachingMiddleware
 
-tinyDB = TinyDB(DATABASE, storage=CachingMiddleware(JSONStorage))
+tinyDB = TinyDB(DATABASE)
 device_cache = {}  # {session_id: Device}
 closed_group_cache = {}  # {closed_group_id: ClosedGroup}
 
