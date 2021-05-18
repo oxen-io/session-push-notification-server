@@ -96,14 +96,14 @@ class PushNotificationHelperV2:
     # Sync mappings to local file #
     async def sync_to_db(self):
         while not self.stop_running:
-            for i in range(600):
+            for i in range(10):
                 await asyncio.sleep(1)
                 if self.stop_running:
                     return
-            self.logger.info("Start to sync to DB.")
+            self.logger.info(f"Start to sync to DB at {datetime.now()}.")
             self.store_data_if_needed()
             flush()
-            self.logger.info("End of flush.")
+            self.logger.info(f"End of flush at {datetime.now()}.")
 
     # Send PNs #
     def add_message_to_queue(self, message):

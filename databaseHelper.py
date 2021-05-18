@@ -4,6 +4,7 @@ from datetime import datetime
 import pickle
 import os
 from tinydb import JSONStorage
+from tinydb.middlewares import CachingMiddleware
 
 tinyDB = TinyDB(DATABASE, storage=JSONStorage)
 device_cache = {}  # {session_id: Device}
@@ -14,6 +15,7 @@ class DatabaseModel:
     def __init__(self, table, doc_id=None):
         self.table = table
         self.doc_id = doc_id
+        self.need_to_save = False
 
     def find(self, queries):
         final_query = None
@@ -39,6 +41,7 @@ class DatabaseModel:
             tinyDB.table(self.table).update(mapping, doc_ids=[self.doc_id])
         else:
             self.doc_id = tinyDB.table(self.table).insert(mapping)
+        self.need_to_save = False
 
 
 class Device(DatabaseModel):
@@ -61,6 +64,7 @@ class Device(DatabaseModel):
 
     def save(self):
         device_cache[self.session_id] = self
+        self.need_to_save = True
 
 
 class ClosedGroup(DatabaseModel):
@@ -83,18 +87,16 @@ class ClosedGroup(DatabaseModel):
 
     def save(self):
         closed_group_cache[self.closed_group_id] = self
+        self.need_to_save = True
 
 
 def load_cache():
     device_table = tinyDB.table(PUBKEY_TOKEN_TABLE)
     devices = device_table.all()
-    try:
-        for device_mapping in devices:
-            device = Device(doc_id=device_mapping.doc_id)
-            device.from_mapping(device_mapping)
-            device_cache[device.session_id] = device
-    except Exception as e:
-        print(e)
+    for device_mapping in devices:
+        device = Device(doc_id=device_mapping.doc_id)
+        device.from_mapping(device_mapping)
+        device_cache[device.session_id] = device
 
     closed_group_table = tinyDB.table(CLOSED_GROUP_TABLE)
     closed_groups = closed_group_table.all()
@@ -105,27 +107,17 @@ def load_cache():
 
 
 def flush():
-    devices = device_cache.copy()
-    closed_groups = closed_group_cache.copy()
-    inserts = []
-    updates = []
-    for device in devices.values():
-        if device.doc_id:
-            updates.append((device.to_mapping(), where(PUBKEY) == device.session_id))
-        else:
-            inserts.append(device.to_mapping())
-    tinyDB.table(PUBKEY_TOKEN_TABLE).insert_multiple(inserts)
-    tinyDB.table(PUBKEY_TOKEN_TABLE).update_multiple(updates)
+    items_need_to_save = []
+    for device in device_cache.copy().values():
+        if device.need_to_save:
+            items_need_to_save.append(device)
 
-    inserts.clear()
-    updates.clear()
-    for closed_group in closed_groups.values():
-        if closed_group.doc_id:
-            updates.append((closed_group.to_mapping(), where(CLOSED_GROUP) == closed_group.closed_group_id))
-        else:
-            inserts.append(closed_group.to_mapping())
-    tinyDB.table(CLOSED_GROUP_TABLE).insert_multiple(inserts)
-    tinyDB.table(CLOSED_GROUP_TABLE).update_multiple(updates)
+    for closed_group in closed_group_cache.copy().values():
+        if closed_group.need_to_save:
+            items_need_to_save.append(closed_group)
+
+    for item in items_need_to_save:
+        item.save_to_db()
 
 
 def migrate_database_if_needed():
