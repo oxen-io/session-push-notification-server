@@ -88,24 +88,44 @@ class ClosedGroup(DatabaseModel):
 def load_cache():
     device_table = tinyDB.table(PUBKEY_TOKEN_TABLE)
     devices = device_table.all()
-    for device_mapping in devices:
-        device = Device()
-        device.from_mapping(device_mapping)
-        device_cache[device.session_id] = device
+    try:
+        for device_mapping in devices:
+            device = Device(doc_id=device_mapping.doc_id)
+            device.from_mapping(device_mapping)
+            device_cache[device.session_id] = device
+    except Exception as e:
+        print(e)
 
     closed_group_table = tinyDB.table(CLOSED_GROUP_TABLE)
     closed_groups = closed_group_table.all()
     for closed_group_mapping in closed_groups:
-        closed_group = ClosedGroup()
+        closed_group = ClosedGroup(doc_id=closed_group_mapping.doc_id)
         closed_group.from_mapping(closed_group_mapping)
         closed_group_cache[closed_group.closed_group_id] = closed_group
 
 
 def flush():
-    for device in device_cache.values():
-        device.save_to_db()
-    for closed_group in closed_group_cache.values():
-        closed_group.save_to_db()
+    devices = device_cache.copy()
+    closed_groups = closed_group_cache.copy()
+    inserts = []
+    updates = []
+    for device in devices.values():
+        if device.doc_id:
+            updates.append((device.to_mapping(), where(PUBKEY) == device.session_id))
+        else:
+            inserts.append(device.to_mapping())
+    tinyDB.table(PUBKEY_TOKEN_TABLE).insert_multiple(inserts)
+    tinyDB.table(PUBKEY_TOKEN_TABLE).update_multiple(updates)
+
+    inserts.clear()
+    updates.clear()
+    for closed_group in closed_groups.values():
+        if closed_group.doc_id:
+            updates.append((closed_group.to_mapping(), where(CLOSED_GROUP) == closed_group.closed_group_id))
+        else:
+            inserts.append(closed_group.to_mapping())
+    tinyDB.table(CLOSED_GROUP_TABLE).insert_multiple(inserts)
+    tinyDB.table(CLOSED_GROUP_TABLE).update_multiple(updates)
 
 
 def migrate_database_if_needed():
