@@ -1,12 +1,10 @@
 from const import *
-from tinydb import TinyDB, where, Query
+from tinydb import TinyDB, Query
 from datetime import datetime
 import pickle
 import os
-from tinydb import JSONStorage
-from tinydb.middlewares import CachingMiddleware
 
-tinyDB = TinyDB(DATABASE, storage=JSONStorage)
+tinyDB = TinyDB(DATABASE, ensure_ascii=False)
 device_cache = {}  # {session_id: Device}
 closed_group_cache = {}  # {closed_group_id: ClosedGroup}
 
@@ -16,18 +14,6 @@ class DatabaseModel:
         self.table = table
         self.doc_id = doc_id
         self.need_to_save = False
-
-    def find(self, queries):
-        final_query = None
-        for query in queries:
-            final_query = final_query & query if final_query else query
-        if final_query:
-            documents = tinyDB.table(self.table).search(final_query)
-            if len(documents) > 0:
-                self.doc_id = documents[0].doc_id
-                self.from_mapping(documents[0])
-                return True
-        return False
 
     def from_mapping(self, mapping):
         pass

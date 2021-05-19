@@ -79,16 +79,15 @@ class PushNotificationHelperV2:
 
     def subscribe_closed_group(self, closed_group_id, session_id):
         self.logger.info(f"New subscriber {session_id} to closed group {closed_group_id}.")
-        closed_group = ClosedGroup()
-        if not closed_group.find([where(CLOSED_GROUP) == closed_group_id]):
-            closed_group.closed_group_id = closed_group_id
-
+        closed_group = get_closed_group(closed_group_id)
+        if closed_group is None:
+            closed_group = ClosedGroup()
         closed_group.members.add(session_id)
         closed_group.save()
 
     def unsubscribe_closed_group(self, closed_group_id, session_id):
-        closed_group = ClosedGroup()
-        if closed_group.find([where(CLOSED_GROUP) == closed_group_id, where(MEMBERS).any(session_id)]):
+        closed_group = get_closed_group(closed_group_id)
+        if closed_group:
             self.logger.info(f"{session_id} unsubscribe {closed_group_id}.")
             closed_group.members.remove(session_id)
             closed_group.save()
@@ -101,8 +100,11 @@ class PushNotificationHelperV2:
                 if self.stop_running:
                     return
             self.logger.info(f"Start to sync to DB at {datetime.now()}.")
-            self.store_data_if_needed()
-            flush()
+            try:
+                self.store_data_if_needed()
+                flush()
+            except Exception as e:
+                self.logger.error(f"Flush exception: {e}")
             self.logger.info(f"End of flush at {datetime.now()}.")
 
     # Send PNs #
