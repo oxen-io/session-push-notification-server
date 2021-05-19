@@ -35,23 +35,19 @@ class DatabaseModel:
     def to_mapping(self):
         pass
 
-    def save_to_db(self):
-        mapping = self.to_mapping()
-        if self.doc_id:
-            tinyDB.table(self.table).update(mapping, doc_ids=[self.doc_id])
-        else:
-            self.doc_id = tinyDB.table(self.table).insert(mapping)
-        self.need_to_save = False
+    def save(self):
+        self.need_to_save = True
+
+    def saved_to_db(self, doc_id):
+        if doc_id:
+            self.doc_id = doc_id
+            self.need_to_save = False
 
 
 class Device(DatabaseModel):
     def __init__(self, doc_id=None, session_id=None, tokens=None):
         super().__init__(PUBKEY_TOKEN_TABLE, doc_id)
-        if session_id:
-            self.session_id = session_id
-            documents = tinyDB.table(self.table).search(where(PUBKEY) == session_id)
-            if len(documents) > 0:
-                self.doc_id = documents[0].doc_id
+        self.session_id = session_id
         self.tokens = set(tokens) if tokens else set()
 
     def from_mapping(self, mapping):
@@ -64,17 +60,13 @@ class Device(DatabaseModel):
 
     def save(self):
         device_cache[self.session_id] = self
-        self.need_to_save = True
+        super().save()
 
 
 class ClosedGroup(DatabaseModel):
     def __init__(self, doc_id=None, closed_group_id=None, members=None):
         super().__init__(CLOSED_GROUP_TABLE, doc_id)
-        if closed_group_id:
-            self.closed_group_id = closed_group_id
-            documents = tinyDB.table(self.table).search(where(CLOSED_GROUP) == closed_group_id)
-            if len(documents) > 0:
-                self.doc_id = documents[0].doc_id
+        self.closed_group_id = closed_group_id
         self.members = set(members) if members else set()
 
     def from_mapping(self, mapping):
@@ -87,7 +79,7 @@ class ClosedGroup(DatabaseModel):
 
     def save(self):
         closed_group_cache[self.closed_group_id] = self
-        self.need_to_save = True
+        super().save()
 
 
 def load_cache():
@@ -107,17 +99,24 @@ def load_cache():
 
 
 def flush():
-    items_need_to_save = []
-    for device in device_cache.copy().values():
-        if device.need_to_save:
-            items_need_to_save.append(device)
 
-    for closed_group in closed_group_cache.copy().values():
-        if closed_group.need_to_save:
-            items_need_to_save.append(closed_group)
+    def batch_flush(items, table):
+        items_need_to_save = []
+        items_need_to_update = []
+        mappings = []
+        for item in items:
+            if item.need_to_save:
+                items_need_to_save.append(item)
+                mappings.append(item.to_mapping())
+                if item.doc_id:
+                    items_need_to_update.append(item.doc_id)
+        tinyDB.table(table).remove(doc_ids=items_need_to_update)
+        doc_ids = tinyDB.table(table).insert_multiple(mappings)
+        for i in range(len(items_need_to_save)):
+            items_need_to_save[i].saved_to_db(doc_ids[i])
 
-    for item in items_need_to_save:
-        item.save_to_db()
+    batch_flush(device_cache.copy().values(), PUBKEY_TOKEN_TABLE)
+    batch_flush(closed_group_cache.copy().values(), CLOSED_GROUP_TABLE)
 
 
 def migrate_database_if_needed():
