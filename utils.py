@@ -5,9 +5,9 @@ import hashlib
 import os
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
-from const import PRIVKEY_FILE, NONCE_LENGTH, TAG_LENGTH
+from const import *
 from Crypto.Random import get_random_bytes
-import time
+import json
 
 
 def is_ios_device_token(token):
@@ -15,6 +15,9 @@ def is_ios_device_token(token):
 
 
 def make_symmetric_key(client_pubkey):
+    if client_pubkey is None:
+        return None
+
     server_privkey = ''
     if os.path.isfile(PRIVKEY_FILE):
         with open(PRIVKEY_FILE, 'r') as server_privkey_file:
@@ -45,3 +48,12 @@ def encrypt(plaintext, symmetric_key):
     encryptor = Cipher(algorithms.AES(symmetric_key), modes.GCM(nonce), default_backend()).encryptor()
     ciphertext = encryptor.update(plaintext.encode('utf-8')) + encryptor.finalize()
     return b64encode(nonce + ciphertext + encryptor.tag).decode('utf-8')
+
+
+def onion_request_data_handler(data):
+    ciphertext_length = int.from_bytes(data[:4], "little") + 4
+    ciphertext = data[4:ciphertext_length]
+    body_as_string = data[ciphertext_length:].decode('utf-8')
+    body = json.loads(body_as_string)
+    body[CIPHERTEXT] = b64encode(ciphertext)
+    return body
