@@ -2,6 +2,8 @@ import signal
 from flask import Flask, request, jsonify
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
+
+import databaseHelper
 from pushNotificationHandler import PushNotificationHelperV2
 from const import *
 from lokiLogger import LokiLogger
@@ -12,7 +14,7 @@ from tornado.ioloop import IOLoop
 import resource
 from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler
 import json
-from databaseHelper import get_data, migrate_database_if_needed, tinyDB, load_cache
+from databaseHelper import DatabaseHelper
 
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 urllib3.disable_warnings()
@@ -127,7 +129,7 @@ def onion_request_body_handler(body):
     if EPHEMERAL in body:
         ephemeral_pubkey = body[EPHEMERAL]
 
-    symmetric_key = make_symmetric_key(ephemeral_pubkey)
+    symmetric_key = make_symmetric_key(ephemeral_pubkey, logger)
 
     if ciphertext and symmetric_key:
         try:
@@ -145,6 +147,8 @@ def onion_request_body_handler(body):
             response = json.dumps({STATUS: 400,
                                    BODY: {CODE: 0,
                                           MSG: str(e)}})
+    else:
+        logger.error(body)
     return jsonify({RESULT: encrypt(response, symmetric_key)})
 
 
@@ -153,6 +157,8 @@ def onion_request_v2():
     body = {}
     if request.data:
         body = onion_request_data_handler(request.data)
+    else:
+        logger.error(request.form)
     return onion_request_body_handler(body)
 
 
@@ -181,7 +187,7 @@ def get_statistics_data():
         if closed_group_message_include is not None and int(closed_group_message_include) == 0:
             keys_to_remove.append(CLOSED_GROUP_MESSAGE_NUMBER)
 
-        data = get_data(start_date, end_date)
+        data = DatabaseHelper().get_data(start_date, end_date)
         for item in data:
             for key in keys_to_remove:
                 item.pop(key, None)
@@ -190,13 +196,10 @@ def get_statistics_data():
 
 
 if __name__ == '__main__':
-    migrate_database_if_needed()
-    load_cache()
+    DatabaseHelper().migrate_database_if_needed()
+    DatabaseHelper().load_cache()
     PN_helper_v2.run()
     port = 3000 if debug_mode else 5000
     http_server = HTTPServer(WSGIContainer(app), no_keep_alive=True)
     http_server.listen(port)
-    try:
-        loop.start()
-    except KeyboardInterrupt:
-        handle_exit(None, None)
+    loop.start()
