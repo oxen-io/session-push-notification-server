@@ -14,9 +14,8 @@ def is_ios_device_token(token):
     return len(token) == 64
 
 
-def make_symmetric_key(client_pubkey, logger):
+def make_symmetric_key(client_pubkey):
     if client_pubkey is None:
-        logger.error("client_pubkey is none.")
         return None
 
     server_privkey = ''
@@ -25,7 +24,6 @@ def make_symmetric_key(client_pubkey, logger):
             server_privkey = server_privkey_file.read()
         server_privkey_file.close()
     if len(server_privkey) == 0:
-        logger.error("server_privkey is none.")
         return None
 
     server_privkey_bytes = bytes.fromhex(server_privkey)
