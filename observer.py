@@ -13,7 +13,7 @@ class Observer:
         self.last_ios_pn_number = 0
         self.last_android_pn_number = 0
         self.last_time_checked = None
-        self.subscribers = []
+        self.subscribers = set()
         self.is_running = False
         self.thread = Thread(target=self.run_check_alive_task)
         self.message_loop = MessageLoop(self.bot, self.handle)
@@ -36,7 +36,7 @@ class Observer:
         content_type, chat_type, chat_id = telepot.glance(message)
         if content_type == 'text':
             if message['text'] == '/start':
-                self.subscribers.append(chat_id)
+                self.subscribers.add(chat_id)
                 self.bot.sendMessage(chat_id, 'Start to observe PN server.')
                 if debug_mode:
                     self.bot.sendMessage(chat_id, 'Debug mode. You won\'t get observer messages.')
