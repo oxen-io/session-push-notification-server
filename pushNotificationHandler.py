@@ -84,6 +84,7 @@ class PushNotificationHelperV2:
         closed_group = self.database_helper.get_closed_group(closed_group_id)
         if closed_group is None:
             closed_group = ClosedGroup()
+            closed_group.closed_group_id = closed_group_id
         closed_group.members.add(session_id)
         closed_group.save(self.database_helper)
 
