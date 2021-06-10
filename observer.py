@@ -35,11 +35,13 @@ class Observer:
     def handle(self, message):
         content_type, chat_type, chat_id = telepot.glance(message)
         if content_type == 'text':
+            if debug_mode:
+                self.bot.sendMessage(chat_id, 'Debug mode. You won\'t get observer messages.')
+                return
+            
             if message['text'] == '/start':
                 self.subscribers.add(chat_id)
                 self.bot.sendMessage(chat_id, 'Start to observe PN server.')
-                if debug_mode:
-                    self.bot.sendMessage(chat_id, 'Debug mode. You won\'t get observer messages.')
 
             if message['text'] == '/stop':
                 self.subscribers.remove(chat_id)
