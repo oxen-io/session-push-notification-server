@@ -17,7 +17,7 @@ class DatabaseModel:
     def to_mapping(self):
         pass
 
-    def save(self):
+    def save(self, database_helper):
         self.need_to_save = True
 
     def saved_to_db(self, doc_id):
@@ -40,9 +40,9 @@ class Device(DatabaseModel):
         return {PUBKEY: self.session_id,
                 TOKEN: list(self.tokens)}
 
-    def save(self):
-        DatabaseHelper().device_cache[self.session_id] = self
-        super().save()
+    def save(self, database_helper):
+        database_helper.device_cache[self.session_id] = self
+        super().save(database_helper)
 
 
 class ClosedGroup(DatabaseModel):
@@ -59,9 +59,9 @@ class ClosedGroup(DatabaseModel):
         return {CLOSED_GROUP: self.closed_group_id,
                 MEMBERS: list(self.members)}
 
-    def save(self):
-        DatabaseHelper().closed_group_cache[self.closed_group_id] = self
-        super().save()
+    def save(self, database_helper):
+        database_helper.closed_group_cache[self.closed_group_id] = self
+        super().save(database_helper)
 
 
 class DatabaseHelper:

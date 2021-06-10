@@ -41,6 +41,10 @@ class Observer:
                 if debug_mode:
                     self.bot.sendMessage(chat_id, 'Debug mode. You won\'t get observer messages.')
 
+            if message['text'] == '/stop':
+                self.subscribers.remove(chat_id)
+                self.bot.sendMessage(chat_id, 'Stop to observe PN server.')
+
     def run(self):
         self.is_running = True
         self.message_loop.run_as_thread()
@@ -65,8 +69,8 @@ class Observer:
             if self.last_time_checked:
                 now = datetime.now()
                 time_diff = now - self.last_time_checked
-                if time_diff.total_seconds() > 120:
+                if time_diff.total_seconds() > 300:
                     for chat_id in self.subscribers:
-                        self.bot.sendMessage(chat_id, 'Not synced to DB for more than 90s. Process might be crashed.')
+                        self.bot.sendMessage(chat_id, 'Not synced to DB for more than 5 min. Process might be crashed.')
             await asyncio.sleep(10)
 
