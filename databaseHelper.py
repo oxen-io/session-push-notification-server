@@ -65,9 +65,9 @@ class ClosedGroup(DatabaseModel):
 
 
 class DatabaseHelper:
-    def __init__(self):
+    def __init__(self, database=DATABASE):
         self.is_flushing = False
-        self.tinyDB = TinyDB(DATABASE, ensure_ascii=False)
+        self.tinyDB = TinyDB(database, ensure_ascii=False)
         self.device_cache = {}  # {session_id: Device}
         self.closed_group_cache = {}  # {closed_group_id: ClosedGroup
 
