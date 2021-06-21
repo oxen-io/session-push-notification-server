@@ -2,8 +2,7 @@ import json
 import shutil
 import unittest
 from databaseHelper import *
-
-TEST_DATABASE = "test_pn_server_db.json"
+from test_const import *
 
 
 class DatabaseHelperTests(unittest.TestCase):
@@ -42,20 +41,20 @@ class DatabaseHelperTests(unittest.TestCase):
 
     def test_2_flush(self):
         test_device = Device()
-        test_device.session_id = 'test_session_id'
-        test_device.tokens.add('test_token')
+        test_device.session_id = TEST_SESSION_ID
+        test_device.tokens.add(TEST_TOKEN_0)
         test_device.save(self.databaseHelper)
 
-        test_device_in_cache = self.databaseHelper.get_device('test_session_id')
+        test_device_in_cache = self.databaseHelper.get_device(TEST_SESSION_ID)
         self.assertTrue(test_device_in_cache is not None,
                         'Test device was not saved to cache!')
 
         test_closed_group = ClosedGroup()
-        test_closed_group.closed_group_id = 'test_closed_group_id'
-        test_closed_group.members.add('test_session_id')
+        test_closed_group.closed_group_id = TEST_CLOSED_GROUP_ID
+        test_closed_group.members.add(TEST_SESSION_ID)
         test_closed_group.save(self.databaseHelper)
 
-        test_closed_group_in_cache = self.databaseHelper.get_closed_group('test_closed_group_id')
+        test_closed_group_in_cache = self.databaseHelper.get_closed_group(TEST_CLOSED_GROUP_ID)
         self.assertTrue(test_closed_group_in_cache is not None,
                         'Test closed group was not saved to cache!')
 
@@ -64,11 +63,11 @@ class DatabaseHelperTests(unittest.TestCase):
         self.databaseHelper.closed_group_cache.clear()
         self.databaseHelper.load_cache()
 
-        test_device_in_db = self.databaseHelper.get_device('test_session_id')
+        test_device_in_db = self.databaseHelper.get_device(TEST_SESSION_ID)
         self.assertTrue(test_device_in_db is not None,
                         'Test device was not flushed to database!')
 
-        test_closed_group_in_db = self.databaseHelper.get_closed_group('test_closed_group_id')
+        test_closed_group_in_db = self.databaseHelper.get_closed_group(TEST_CLOSED_GROUP_ID)
         self.assertTrue(test_closed_group_in_db is not None,
                         'Test closed group was not flushed to database!')
 
