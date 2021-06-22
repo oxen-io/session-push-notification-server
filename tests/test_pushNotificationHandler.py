@@ -1,15 +1,16 @@
 import unittest
-from pushNotificationHandler import *
-from lokiLogger import LokiLogger
-from observer import Observer
 from test_const import *
+from server import database_helper, PN_helper_v2
 
-logger = LokiLogger().logger
-observer = Observer(logger)
-database_helper = DatabaseHelper()
+tests_cases = ['register',
+               'unregister',
+               'subscribe_closed_group',
+               'unsubscribe_closed_group',
+               'send_push_notification',
+               'handle_push_fail']
+
 database_helper.migrate_database_if_needed()
 database_helper.load_cache()
-PN_helper_v2 = PushNotificationHelperV2(logger, database_helper, observer)
 
 
 class PushNotificationHandlerTests(unittest.TestCase):

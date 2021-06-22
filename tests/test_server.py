@@ -2,6 +2,17 @@ import unittest
 from test_const import *
 from server import *
 
+tests_cases = ['lsrpc',
+               'get_statistics_data',
+               'register',
+               'notify',
+               'unregister',
+               'subscribe_closed_group',
+               'unsubscribe_closed_group']
+
+database_helper.migrate_database_if_needed()
+database_helper.load_cache()
+
 
 class ServerTests(unittest.TestCase):
     def setUp(self):
@@ -62,6 +73,4 @@ class ServerTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    database_helper.migrate_database_if_needed()
-    database_helper.load_cache()
     unittest.main()

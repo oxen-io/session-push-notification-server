@@ -3,14 +3,20 @@ import shutil
 import unittest
 from databaseHelper import *
 from test_const import *
+from server import database_helper
+
+tests_cases = ['migrate_database_if_needed',
+               'load_cache',
+               'flush',
+               'statistics_data']
 
 
 class DatabaseHelperTests(unittest.TestCase):
     def setUp(self):
-        self.databaseHelper = DatabaseHelper()
+        self.databaseHelper = database_helper
 
     def tearDown(self):
-        self.databaseHelper.tinyDB.close()
+        pass
 
     def test_0_migrate_database_if_needed(self):
         shutil.copyfile(f'../old db backup/{PUBKEY_TOKEN_DB_V2}', f'../tests/{PUBKEY_TOKEN_DB_V2}')
