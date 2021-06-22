@@ -69,7 +69,7 @@ class DatabaseHelper:
         self.is_flushing = False
         self.tinyDB = TinyDB(database, ensure_ascii=False)
         self.device_cache = {}  # {session_id: Device}
-        self.closed_group_cache = {}  # {closed_group_id: ClosedGroup
+        self.closed_group_cache = {}  # {closed_group_id: ClosedGroup}
 
     def load_cache(self):
         device_table = self.tinyDB.table(PUBKEY_TOKEN_TABLE)
