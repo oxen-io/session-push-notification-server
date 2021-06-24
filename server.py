@@ -138,7 +138,7 @@ def onion_request_body_handler(body):
         symmetric_key = make_symmetric_key(ephemeral_pubkey)
     else:
         logger.error("Client public key is None.")
-        logger.error(f"This request is from {request.remote_addr}.")
+        logger.error(f"This request is from {request.environ['HTTP_X_REAL_IP']}.")
         logger.error(body)
         abort(400)
 
