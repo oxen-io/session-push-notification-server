@@ -24,7 +24,7 @@ class PushNotificationHandlerTests(unittest.TestCase):
     def test_0_register(self):
         self.PN_helper_v2.register(TEST_TOKEN_0, TEST_SESSION_ID)
         test_device_in_cache = self.database_helper.get_device(TEST_SESSION_ID)
-        self.assertTrue(test_device_in_cache is not None)
+        self.assertFalse(test_device_in_cache is None)
         self.assertEqual(self.PN_helper_v2.push_fails[TEST_TOKEN_0], 0)
         self.assertTrue(TEST_TOKEN_0 in test_device_in_cache.tokens)
 
@@ -44,13 +44,13 @@ class PushNotificationHandlerTests(unittest.TestCase):
         test_device_in_cache = self.database_helper.get_device(TEST_SESSION_ID)
         self.assertEqual(test_session_id, TEST_SESSION_ID)
         self.assertEqual(len(test_device_in_cache.tokens), 1)
-        self.assertTrue(TEST_TOKEN_1 not in test_device_in_cache.tokens)
+        self.assertFalse(TEST_TOKEN_1 in test_device_in_cache.tokens)
         self.assertTrue(self.PN_helper_v2.push_fails.get(TEST_TOKEN_1) is None)
 
     def test_2_subscribe_closed_group(self):
         self.PN_helper_v2.subscribe_closed_group(TEST_CLOSED_GROUP_ID, TEST_SESSION_ID)
         test_closed_group_in_cache = self.database_helper.get_closed_group(TEST_CLOSED_GROUP_ID)
-        self.assertTrue(test_closed_group_in_cache is not None)
+        self.assertFalse(test_closed_group_in_cache is None)
         self.assertTrue(TEST_SESSION_ID in test_closed_group_in_cache.members)
 
         self.PN_helper_v2.subscribe_closed_group(TEST_CLOSED_GROUP_ID, TEST_SESSION_ID_1)
@@ -62,7 +62,7 @@ class PushNotificationHandlerTests(unittest.TestCase):
         self.PN_helper_v2.unsubscribe_closed_group(TEST_CLOSED_GROUP_ID, TEST_SESSION_ID_1)
         test_closed_group_in_cache = self.database_helper.get_closed_group(TEST_CLOSED_GROUP_ID)
         self.assertEqual(len(test_closed_group_in_cache.members), 1)
-        self.assertTrue(TEST_SESSION_ID_1 not in test_closed_group_in_cache.members)
+        self.assertFalse(TEST_SESSION_ID_1 in test_closed_group_in_cache.members)
 
     def test_4_send_push_notification(self):
         test_message = {'send_to': TEST_SESSION_ID,
@@ -88,7 +88,7 @@ class PushNotificationHandlerTests(unittest.TestCase):
         for i in range(5):
             self.PN_helper_v2.handle_fail_result(TEST_TOKEN_0, '')
         test_device_in_cache = self.database_helper.get_device(TEST_SESSION_ID)
-        self.assertTrue(TEST_TOKEN_0 not in test_device_in_cache.tokens)
+        self.assertFalse(TEST_TOKEN_0 in test_device_in_cache.tokens)
 
 
 if __name__ == '__main__':

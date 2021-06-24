@@ -55,7 +55,7 @@ class ServerTests(unittest.TestCase):
         args = {TOKEN: TEST_TOKEN_0}
         unregister(args)
         test_device_in_cache = database_helper.device_cache.get(TEST_SESSION_ID)
-        self.assertTrue(TEST_TOKEN_0 not in test_device_in_cache.tokens)
+        self.assertFalse(TEST_TOKEN_0 in test_device_in_cache.tokens)
 
     def test_5_subscribe_closed_group(self):
         args = {CLOSED_GROUP: TEST_CLOSED_GROUP_ID,
@@ -69,7 +69,7 @@ class ServerTests(unittest.TestCase):
                 PUBKEY: TEST_SESSION_ID}
         unsubscribe_closed_group(args)
         test_closed_group_in_cache = database_helper.closed_group_cache.get(TEST_CLOSED_GROUP_ID)
-        self.assertTrue(TEST_SESSION_ID not in test_closed_group_in_cache.members)
+        self.assertFalse(TEST_SESSION_ID in test_closed_group_in_cache.members)
 
 
 if __name__ == '__main__':

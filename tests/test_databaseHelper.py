@@ -29,16 +29,16 @@ class DatabaseHelperTests(unittest.TestCase):
         with open(DATABASE, 'rb') as test_db:
             db_map = dict(json.load(test_db))
         test_db.close()
-        self.assertTrue(len(db_map.items()) > 0)
+        self.assertGreater(len(db_map.items()), 0)
 
         is_old_db_existed = os.path.isfile(PUBKEY_TOKEN_DB_V2) or os.path.isfile(CLOSED_GROUP_DB)
-        self.assertTrue(not is_old_db_existed)
+        self.assertFalse(is_old_db_existed)
 
     def test_1_load_cache(self):
         self.databaseHelper.load_cache()
 
-        self.assertTrue(len(self.databaseHelper.device_cache.items()) > 0)
-        self.assertTrue(len(self.databaseHelper.closed_group_cache.items()) > 0)
+        self.assertGreater(len(self.databaseHelper.device_cache.items()), 0)
+        self.assertGreater(len(self.databaseHelper.closed_group_cache.items()), 0)
 
     def test_2_flush(self):
         test_device = Device()
@@ -47,7 +47,7 @@ class DatabaseHelperTests(unittest.TestCase):
         test_device.save(self.databaseHelper)
 
         test_device_in_cache = self.databaseHelper.get_device(TEST_SESSION_ID)
-        self.assertTrue(test_device_in_cache is not None)
+        self.assertFalse(test_device_in_cache is None)
 
         test_closed_group = ClosedGroup()
         test_closed_group.closed_group_id = TEST_CLOSED_GROUP_ID
@@ -55,7 +55,7 @@ class DatabaseHelperTests(unittest.TestCase):
         test_closed_group.save(self.databaseHelper)
 
         test_closed_group_in_cache = self.databaseHelper.get_closed_group(TEST_CLOSED_GROUP_ID)
-        self.assertTrue(test_closed_group_in_cache is not None)
+        self.assertFalse(test_closed_group_in_cache is None)
 
         self.databaseHelper.flush()
         self.databaseHelper.device_cache.clear()
@@ -63,10 +63,10 @@ class DatabaseHelperTests(unittest.TestCase):
         self.databaseHelper.load_cache()
 
         test_device_in_db = self.databaseHelper.get_device(TEST_SESSION_ID)
-        self.assertTrue(test_device_in_db is not None)
+        self.assertFalse(test_device_in_db is None)
 
         test_closed_group_in_db = self.databaseHelper.get_closed_group(TEST_CLOSED_GROUP_ID)
-        self.assertTrue(test_closed_group_in_db is not None)
+        self.assertFalse(test_closed_group_in_db is None)
 
     def test_3_statistics_data(self):
         last_statistics_date = datetime.now()
