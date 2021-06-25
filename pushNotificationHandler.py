@@ -54,11 +54,12 @@ class PushNotificationHelperV2:
     def remove_device_token(self, device_token):
         if device_token in self.push_fails.keys():
             del self.push_fails[device_token]
-        for session_id, device in self.database_helper.device_cache.items():
-            if device_token in device.tokens:
-                device.tokens.remove(device_token)
-                device.save(self.database_helper)
-                return device.session_id
+        if device_token in self.database_helper.token_device_mapping.keys():
+            device = self.database_helper.token_device_mapping[device_token]
+            device.tokens.remove(device_token)
+            del self.database_helper.token_device_mapping[device_token]
+            device.save(self.database_helper)
+            return device.session_id
         return "No session id"
 
     def register(self, device_token, session_id):

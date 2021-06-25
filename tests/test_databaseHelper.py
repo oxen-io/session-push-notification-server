@@ -38,6 +38,7 @@ class DatabaseHelperTests(unittest.TestCase):
         self.databaseHelper.load_cache()
 
         self.assertGreater(len(self.databaseHelper.device_cache.items()), 0)
+        self.assertGreater(len(self.databaseHelper.token_device_mapping.items()), 0)
         self.assertGreater(len(self.databaseHelper.closed_group_cache.items()), 0)
 
     def test_2_flush(self):

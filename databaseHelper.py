@@ -42,6 +42,8 @@ class Device(DatabaseModel):
 
     def save(self, database_helper):
         database_helper.device_cache[self.session_id] = self
+        for token in self.tokens:
+            database_helper.token_device_mapping[token] = self
         super().save(database_helper)
 
 
@@ -69,6 +71,7 @@ class DatabaseHelper:
         self.is_flushing = False
         self.tinyDB = TinyDB(database, ensure_ascii=False)
         self.device_cache = {}  # {session_id: Device}
+        self.token_device_mapping = {}  # {token: Device}
         self.closed_group_cache = {}  # {closed_group_id: ClosedGroup}
 
     def load_cache(self):
@@ -78,6 +81,8 @@ class DatabaseHelper:
             device = Device(doc_id=device_mapping.doc_id)
             device.from_mapping(device_mapping)
             self.device_cache[device.session_id] = device
+            for token in device.tokens:
+                self.token_device_mapping[token] = device
 
         closed_group_table = self.tinyDB.table(CLOSED_GROUP_TABLE)
         closed_groups = closed_group_table.all()
