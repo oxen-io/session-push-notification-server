@@ -49,7 +49,7 @@ class Observer:
 
     def run(self):
         self.is_running = True
-        self.message_loop.run_as_thread()
+        self.message_loop.run_as_thread(relax=1)
         self.thread.start()
 
     def stop(self):
