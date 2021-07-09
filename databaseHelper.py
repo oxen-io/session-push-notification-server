@@ -1,6 +1,10 @@
+from json import JSONDecodeError
+
+import utils
 from const import *
 from tinydb import TinyDB, Query
 from datetime import datetime
+from threading import Lock
 import pickle
 import os
 
@@ -73,6 +77,7 @@ class DatabaseHelper:
         self.device_cache = {}  # {session_id: Device}
         self.token_device_mapping = {}  # {token: Device}
         self.closed_group_cache = {}  # {closed_group_id: ClosedGroup}
+        self.mutex = Lock()
 
     def load_cache(self):
         device_table = self.tinyDB.table(PUBKEY_TOKEN_TABLE)
@@ -110,8 +115,10 @@ class DatabaseHelper:
         if self.is_flushing:
             return
         self.is_flushing = True
+        self.mutex.acquire(True)
         batch_flush(self.device_cache.copy().values(), PUBKEY_TOKEN_TABLE)
         batch_flush(self.closed_group_cache.copy().values(), CLOSED_GROUP_TABLE)
+        self.mutex.release()
         self.is_flushing = False
 
     def migrate_database_if_needed(self):
@@ -137,6 +144,7 @@ class DatabaseHelper:
         migrate(CLOSED_GROUP_DB, CLOSED_GROUP_TABLE, {CLOSED_GROUP: MEMBERS})
 
     def store_data(self, last_statistics_date, now, ios_pn_number, android_pn_number, total_message_number, closed_group_message_number):
+        self.mutex.acquire(True)
         db = self.tinyDB.table(STATISTICS_TABLE)
         fmt = "%Y-%m-%d %H:%M:%S"
         db.insert({START_DATE: last_statistics_date.strftime(fmt),
@@ -145,6 +153,7 @@ class DatabaseHelper:
                    ANDROID_PN_NUMBER: android_pn_number,
                    TOTAL_MESSAGE_NUMBER: total_message_number,
                    CLOSED_GROUP_MESSAGE_NUMBER: closed_group_message_number})
+        self.mutex.release()
 
     def get_data(self, start_date, end_date):
         db = self.tinyDB.table(STATISTICS_TABLE)
@@ -162,17 +171,55 @@ class DatabaseHelper:
             date_2 = try_to_convert_datetime(date_str)
             return date_1 > date_2 if ascending else date_1 < date_2
 
-        data_query = Query()
-        if start_date and end_date:
-            return db.search(data_query[START_DATE].test(test_func, start_date, True) &
-                             data_query[END_DATE].test(test_func, end_date, False))
-        elif start_date:
-            return db.search(data_query[START_DATE].test(test_func, start_date, True))
-        else:
-            return db.all()
+        try:
+            self.mutex.acquire(True)
+            data_query = Query()
+            if start_date and end_date:
+                data = db.search(data_query[START_DATE].test(test_func, start_date, True) &
+                                 data_query[END_DATE].test(test_func, end_date, False))
+            elif start_date:
+                data = db.search(data_query[START_DATE].test(test_func, start_date, True))
+            else:
+                data = db.all()
+            self.mutex.release()
+
+            ios_device_number = 0
+            android_device_number = 0
+            total_session_id_number = 0
+            for session_id, device in self.device_cache.items():
+                if len(device.tokens) > 0:
+                    total_session_id_number += 1
+                    for token in device.tokens:
+                        if utils.is_ios_device_token(token):
+                            ios_device_number += 1
+                        else:
+                            android_device_number += 1
+
+            return {DATA: data,
+                    IOS_DEVICE_NUMBER: ios_device_number,
+                    ANDROID_DEVICE_NUMBER: android_device_number,
+                    TOTAL_SESSION_ID_NUMBER: total_session_id_number}
+
+        except JSONDecodeError as e:
+            self.correct_database(e.pos)
+            self.mutex.release()
+            return self.get_data(start_date, end_date)
 
     def get_device(self, session_id):
         return self.device_cache.get(session_id, None)
 
     def get_closed_group(self, closed_group_id):
         return self.closed_group_cache.get(closed_group_id, None)
+
+    def correct_database(self, index):
+        if self.is_flushing:
+            return
+
+        if os.path.isfile(DATABASE):
+            with open(DATABASE, 'rb') as db:
+                string = db.read()
+            db.close()
+            with open(DATABASE, 'wb') as db:
+                db.write(string[:index])
+            db.close()
+

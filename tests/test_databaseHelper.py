@@ -78,10 +78,10 @@ class DatabaseHelperTests(unittest.TestCase):
         closed_group_message_number = 1
 
         statistics_data = self.databaseHelper.get_data(None, None)
-        total_columns_before = len(statistics_data)
+        total_columns_before = len(statistics_data[DATA])
         self.databaseHelper.store_data(last_statistics_date, now, ios_pn_number, android_pn_number, total_message_number, closed_group_message_number)
         statistics_data = self.databaseHelper.get_data(None, None)
-        total_columns_after = len(statistics_data)
+        total_columns_after = len(statistics_data[DATA])
 
         self.assertEqual(total_columns_before + 1, total_columns_after)
 
