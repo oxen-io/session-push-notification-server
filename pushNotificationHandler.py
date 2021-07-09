@@ -14,12 +14,14 @@ from databaseHelper import *
 # PN approach V2 #
 class PushNotificationHelperV2:
     # Init #
-    def __init__(self, logger):
+    def __init__(self, logger, database_helper, observer):
         self.apns = APNsClient(CERT_FILE, use_sandbox=debug_mode, use_alternative_port=False)
         self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
         self.message_queue = Queue()
         self.push_fails = {}
         self.logger = logger
+        self.database_helper = database_helper
+        self.observer = observer
         self.stop_running = False
         self.thread = Thread(target=self.run_push_notification_task)
         self.db_thread = Thread(target=self.run_sync_to_db_task)
@@ -39,9 +41,9 @@ class PushNotificationHelperV2:
                              f"Android push notification number: {self.notification_counter_android}\n" +
                              f"Closed group message number: {self.closed_group_messages}\n" +
                              f"Total message number: {self.total_messages}\n")
-            store_data(self.last_statistics_date, now,
-                       self.notification_counter_ios, self.notification_counter_android,
-                       self.total_messages, self.closed_group_messages)
+            self.database_helper.store_data(self.last_statistics_date, now,
+                                            self.notification_counter_ios, self.notification_counter_android,
+                                            self.total_messages, self.closed_group_messages)
             self.last_statistics_date = now
             self.notification_counter_ios = 0
             self.notification_counter_android = 0
@@ -52,17 +54,18 @@ class PushNotificationHelperV2:
     def remove_device_token(self, device_token):
         if device_token in self.push_fails.keys():
             del self.push_fails[device_token]
-        for session_id, device in device_cache.items():
-            if device_token in device.tokens:
-                device.tokens.remove(device_token)
-                device.save()
-                return device.session_id
+        if device_token in self.database_helper.token_device_mapping.keys():
+            device = self.database_helper.token_device_mapping[device_token]
+            device.tokens.remove(device_token)
+            del self.database_helper.token_device_mapping[device_token]
+            device.save(self.database_helper)
+            return device.session_id
         return "No session id"
 
     def register(self, device_token, session_id):
         self.remove_device_token(device_token)
 
-        device = get_device(session_id)
+        device = self.database_helper.get_device(session_id)
         # When there is no record for either the session id or the token
         if device is None:
             self.logger.info(f"New session id registered {session_id}.")
@@ -71,7 +74,7 @@ class PushNotificationHelperV2:
 
         # When an existed session id adds a new device
         device.tokens.add(device_token)
-        device.save()
+        device.save(self.database_helper)
         self.push_fails[device_token] = 0
 
     def unregister(self, device_token):
@@ -79,18 +82,19 @@ class PushNotificationHelperV2:
 
     def subscribe_closed_group(self, closed_group_id, session_id):
         self.logger.info(f"New subscriber {session_id} to closed group {closed_group_id}.")
-        closed_group = get_closed_group(closed_group_id)
+        closed_group = self.database_helper.get_closed_group(closed_group_id)
         if closed_group is None:
             closed_group = ClosedGroup()
+            closed_group.closed_group_id = closed_group_id
         closed_group.members.add(session_id)
-        closed_group.save()
+        closed_group.save(self.database_helper)
 
     def unsubscribe_closed_group(self, closed_group_id, session_id):
-        closed_group = get_closed_group(closed_group_id)
+        closed_group = self.database_helper.get_closed_group(closed_group_id)
         if closed_group:
             self.logger.info(f"{session_id} unsubscribe {closed_group_id}.")
             closed_group.members.remove(session_id)
-            closed_group.save()
+            closed_group.save(self.database_helper)
 
     # Sync mappings to local file #
     async def sync_to_db(self):
@@ -101,8 +105,9 @@ class PushNotificationHelperV2:
                     return
             self.logger.info(f"Start to sync to DB at {datetime.now()}.")
             try:
+                self.observer.check_push_notification(self.notification_counter_ios, self.notification_counter_android)
                 self.store_data_if_needed()
-                flush()
+                self.database_helper.flush()
             except Exception as e:
                 self.logger.error(f"Flush exception: {e}")
             self.logger.info(f"End of flush at {datetime.now()}.")
@@ -134,7 +139,7 @@ class PushNotificationHelperV2:
 
         def generate_notifications(session_ids):
             for session_id in session_ids:
-                device_for_push = get_device(session_id)
+                device_for_push = self.database_helper.get_device(session_id)
                 if device_for_push:
                     self.logger.info(f'New PN to {session_id}.')
                     for device_token in device_for_push.tokens:
@@ -155,8 +160,8 @@ class PushNotificationHelperV2:
         notifications_android = []
         for message in messages_wait_to_push:
             recipient = message['send_to']
-            device = get_device(recipient)
-            closed_group = get_closed_group(recipient)
+            device = self.database_helper.get_device(recipient)
+            closed_group = self.database_helper.get_closed_group(recipient)
             if device:
                 generate_notifications([recipient])
             elif closed_group:
@@ -246,7 +251,7 @@ class PushNotificationHelperV2:
     def stop(self):
         self.logger.info(f'{self.__class__.__name__} stop running...')
         self.stop_running = True
-        flush()
+        self.database_helper.flush()
 
     # Error handler #
     def handle_fail_result(self, key, result):

@@ -86,15 +86,20 @@
 ```
 {
     "code": 0,
-    "data": [
-        {
-            "start_date": Date String formated "%Y-%m-%d %H:%M:%S",
-            "end_date": Date String formated "%Y-%m-%d %H:%M:%S",
-            "ios_pn_number": Number,
-            "android_pn_number": Number,
-            "closed_group_message_number": Number,
-            "total_message_number": Number
-        },
-    ]
+    "data": {
+        "ios_device_number": Number,
+        "android_device_number": Number,
+        "total_session_id_number": Number,
+        "data": [
+                    {
+                        "start_date": Date String formated "%Y-%m-%d %H:%M:%S",
+                        "end_date": Date String formated "%Y-%m-%d %H:%M:%S",
+                        "ios_pn_number": Number,
+                        "android_pn_number": Number,
+                        "closed_group_message_number": Number,
+                        "total_message_number": Number
+                    },
+                ]
+    }
 }
 ```

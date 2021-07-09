@@ -16,11 +16,15 @@ EPHEMERAL = 'ephemeral_key'
 PARA_MISSING = 'Missing parameter'
 SUCCESS = 'Success'
 FAIL = 'Fail'
+
 START_DATE = 'start_date'
 END_DATE = 'end_date'
 IOS_PN_NUMBER = 'ios_pn_number'
+IOS_DEVICE_NUMBER = 'ios_device_number'
 ANDROID_PN_NUMBER = 'android_pn_number'
+ANDROID_DEVICE_NUMBER = 'android_device_number'
 TOTAL_MESSAGE_NUMBER = 'total_message_number'
+TOTAL_SESSION_ID_NUMBER = 'total_session_id_number'
 CLOSED_GROUP_MESSAGE_NUMBER = 'closed_group_message_number'
 
 NONCE_LENGTH = 12
