@@ -60,7 +60,7 @@ class PushNotificationHelperV2:
             del self.database_helper.token_device_mapping[device_token]
             device.save(self.database_helper)
             return device.session_id
-        return "No session id"
+        return None
 
     def register(self, device_token, session_id):
         self.remove_device_token(device_token)
@@ -78,7 +78,10 @@ class PushNotificationHelperV2:
         self.push_fails[device_token] = 0
 
     def unregister(self, device_token):
-        self.logger.info(f"{self.remove_device_token(device_token)} with {device_token} unregistered.")
+        session_id = self.remove_device_token(device_token)
+        msg = session_id if session_id else "No session id"
+        self.logger.info(f"{msg} with {device_token} unregistered.")
+        return session_id
 
     def subscribe_closed_group(self, closed_group_id, session_id):
         self.logger.info(f"New subscriber {session_id} to closed group {closed_group_id}.")
@@ -95,6 +98,8 @@ class PushNotificationHelperV2:
             self.logger.info(f"{session_id} unsubscribe {closed_group_id}.")
             closed_group.members.remove(session_id)
             closed_group.save(self.database_helper)
+            return closed_group_id
+        return None
 
     # Sync mappings to local file #
     async def sync_to_db(self):

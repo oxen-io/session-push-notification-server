@@ -53,6 +53,7 @@ def register_v2(args):
 
     if device_token and session_id:
         PN_helper_v2.register(device_token, session_id)
+        return 1, SUCCESS
     else:
         logger.info("Onion routing register error")
         raise Exception(PARA_MISSING)
@@ -64,7 +65,11 @@ def unregister(args):
         device_token = args[TOKEN]
 
     if device_token:
-        PN_helper_v2.unregister(device_token)
+        session_id = PN_helper_v2.unregister(device_token)
+        if session_id:
+            return 1, SUCCESS
+        else:
+            return 0, "Session id was not registered before."
     else:
         logger.info("Onion routing unregister error")
         raise Exception(PARA_MISSING)
@@ -80,6 +85,7 @@ def subscribe_closed_group(args):
 
     if closed_group_id and session_id:
         PN_helper_v2.subscribe_closed_group(closed_group_id, session_id)
+        return 1, SUCCESS
     else:
         logger.info("Onion routing subscribe closed group error")
         raise Exception(PARA_MISSING)
@@ -94,7 +100,11 @@ def unsubscribe_closed_group(args):
         closed_group_id = args[CLOSED_GROUP]
 
     if closed_group_id and session_id:
-        PN_helper_v2.unsubscribe_closed_group(closed_group_id, session_id)
+        closed_group = PN_helper_v2.unsubscribe_closed_group(closed_group_id, session_id)
+        if closed_group:
+            return 1, SUCCESS
+        else:
+            return 0, "Cannot find the closed group id on PN server."
     else:
         logger.info("Onion routing unsubscribe closed group error")
         raise Exception(PARA_MISSING)
@@ -111,6 +121,7 @@ def notify(args):
     if session_id and data:
         logger.info('Notify to ' + session_id)
         PN_helper_v2.add_message_to_queue(args)
+        return 1, SUCCESS
     else:
         raise Exception(PARA_MISSING)
 
@@ -148,10 +159,10 @@ def onion_request_body_handler(body):
             if debug_mode:
                 logger.info(parameters)
             func = Routing[parameters['endpoint']]
-            func(args)
+            code, message = func(args)
             response = json.dumps({STATUS: 200,
-                                   BODY: {CODE: 1,
-                                          MSG: SUCCESS}})
+                                   BODY: {CODE: code,
+                                          MSG: message}})
         except Exception as e:
             logger.error(e)
             response = json.dumps({STATUS: 400,
