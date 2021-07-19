@@ -82,6 +82,7 @@ class DatabaseHelper:
     def load_cache(self):
         device_table = self.tinyDB.table(PUBKEY_TOKEN_TABLE)
         devices = device_table.all()
+        need_to_remove = []
         for device_mapping in devices:
             if device_mapping[PUBKEY]:
                 device = Device(doc_id=device_mapping.doc_id)
@@ -90,17 +91,20 @@ class DatabaseHelper:
                 for token in device.tokens:
                     self.token_device_mapping[token] = device
             else:
-                device_table.remove(doc_ids=[device_mapping.doc_id])
+                need_to_remove.append(device_mapping.doc_id)
+        device_table.remove(doc_ids=need_to_remove)
 
         closed_group_table = self.tinyDB.table(CLOSED_GROUP_TABLE)
         closed_groups = closed_group_table.all()
+        need_to_remove = []
         for closed_group_mapping in closed_groups:
             if closed_group_mapping[CLOSED_GROUP]:
                 closed_group = ClosedGroup(doc_id=closed_group_mapping.doc_id)
                 closed_group.from_mapping(closed_group_mapping)
                 self.closed_group_cache[closed_group.closed_group_id] = closed_group
             else:
-                closed_group_table.remove(doc_ids=[closed_group_mapping.doc_id])
+                need_to_remove.append(closed_group_mapping.doc_id)
+        closed_group_table.remove(doc_ids=need_to_remove)
 
     def flush(self):
         def batch_flush(items, table):
