@@ -122,8 +122,8 @@ class DatabaseHelper:
             return
         self.is_flushing = True
         self.mutex.acquire(True)
-        batch_flush(self.device_cache.copy().values(), PUBKEY_TOKEN_TABLE)
-        batch_flush(self.closed_group_cache.copy().values(), CLOSED_GROUP_TABLE)
+        batch_flush(self.device_cache.values(), PUBKEY_TOKEN_TABLE)
+        batch_flush(self.closed_group_cache.values(), CLOSED_GROUP_TABLE)
         self.mutex.release()
         self.is_flushing = False
 
