@@ -1,3 +1,4 @@
+import time
 from json import JSONDecodeError
 
 import utils
@@ -124,12 +125,12 @@ class DatabaseHelper:
 
         if self.is_flushing:
             return
+        self.mutex.acquire(True, 60)
         self.is_flushing = True
-        self.mutex.acquire(True)
         batch_flush(self.device_cache.values(), PUBKEY_TOKEN_TABLE)
         batch_flush(self.closed_group_cache.values(), CLOSED_GROUP_TABLE)
-        self.mutex.release()
         self.is_flushing = False
+        self.mutex.release()
 
     def migrate_database_if_needed(self):
 
@@ -183,8 +184,8 @@ class DatabaseHelper:
 
         def get_statistics_data():
             result = None
+            self.mutex.acquire(True, 60)
             try:
-                self.mutex.acquire(True)
                 data_query = Query()
                 if start_date and end_date:
                     data = db.search(data_query[START_DATE].test(test_func, start_date, True) &
@@ -211,9 +212,9 @@ class DatabaseHelper:
                           TOTAL_SESSION_ID_NUMBER: total_session_id_number}
             except JSONDecodeError as e:
                 self.correct_database(e.pos)
-            finally:
-                self.mutex.release()
-                return result
+
+            self.mutex.release()
+            return result
 
         final_result = get_statistics_data()
         retry = 0

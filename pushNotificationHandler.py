@@ -104,7 +104,7 @@ class PushNotificationHelperV2:
     # Sync mappings to local file #
     async def sync_to_db(self):
         while not self.stop_running:
-            for i in range(60):
+            for i in range(3 * 60):
                 await asyncio.sleep(1)
                 if self.stop_running:
                     return
