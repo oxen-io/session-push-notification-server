@@ -181,39 +181,46 @@ class DatabaseHelper:
             date_2 = try_to_convert_datetime(date_str)
             return date_1 > date_2 if ascending else date_1 < date_2
 
-        try:
-            self.mutex.acquire(True)
-            data_query = Query()
-            if start_date and end_date:
-                data = db.search(data_query[START_DATE].test(test_func, start_date, True) &
-                                 data_query[END_DATE].test(test_func, end_date, False))
-            elif start_date:
-                data = db.search(data_query[START_DATE].test(test_func, start_date, True))
-            else:
-                data = db.all()
-            self.mutex.release()
+        def get_statistics_data():
+            result = None
+            try:
+                self.mutex.acquire(True)
+                data_query = Query()
+                if start_date and end_date:
+                    data = db.search(data_query[START_DATE].test(test_func, start_date, True) &
+                                     data_query[END_DATE].test(test_func, end_date, False))
+                elif start_date:
+                    data = db.search(data_query[START_DATE].test(test_func, start_date, True))
+                else:
+                    data = db.all()
+                ios_device_number = 0
+                android_device_number = 0
+                total_session_id_number = 0
+                for session_id, device in self.device_cache.items():
+                    if len(device.tokens) > 0:
+                        total_session_id_number += 1
+                        for token in device.tokens:
+                            if utils.is_ios_device_token(token):
+                                ios_device_number += 1
+                            else:
+                                android_device_number += 1
 
-            ios_device_number = 0
-            android_device_number = 0
-            total_session_id_number = 0
-            for session_id, device in self.device_cache.items():
-                if len(device.tokens) > 0:
-                    total_session_id_number += 1
-                    for token in device.tokens:
-                        if utils.is_ios_device_token(token):
-                            ios_device_number += 1
-                        else:
-                            android_device_number += 1
+                result = {DATA: data,
+                          IOS_DEVICE_NUMBER: ios_device_number,
+                          ANDROID_DEVICE_NUMBER: android_device_number,
+                          TOTAL_SESSION_ID_NUMBER: total_session_id_number}
+            except JSONDecodeError as e:
+                self.correct_database(e.pos)
+            finally:
+                self.mutex.release()
+                return result
 
-            return {DATA: data,
-                    IOS_DEVICE_NUMBER: ios_device_number,
-                    ANDROID_DEVICE_NUMBER: android_device_number,
-                    TOTAL_SESSION_ID_NUMBER: total_session_id_number}
-
-        except JSONDecodeError as e:
-            self.correct_database(e.pos)
-            self.mutex.release()
-            return self.get_data(start_date, end_date)
+        final_result = get_statistics_data()
+        retry = 0
+        while final_result is None and retry < 10:
+            final_result = get_statistics_data()
+            retry += 1
+        return final_result
 
     def get_device(self, session_id):
         return self.device_cache.get(session_id, None)
@@ -224,7 +231,6 @@ class DatabaseHelper:
     def correct_database(self, index):
         if self.is_flushing:
             return
-
         if os.path.isfile(DATABASE):
             with open(DATABASE, 'rb') as db:
                 string = db.read()
