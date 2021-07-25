@@ -155,7 +155,7 @@ class DatabaseHelper:
         migrate(CLOSED_GROUP_DB, CLOSED_GROUP_TABLE, {CLOSED_GROUP: MEMBERS})
 
     def store_data(self, last_statistics_date, now, ios_pn_number, android_pn_number, total_message_number, closed_group_message_number):
-        self.mutex.acquire(True)
+        self.mutex.acquire(True, 60)
         db = self.tinyDB.table(STATISTICS_TABLE)
         fmt = "%Y-%m-%d %H:%M:%S"
         db.insert({START_DATE: last_statistics_date.strftime(fmt),
