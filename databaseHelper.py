@@ -125,12 +125,17 @@ class DatabaseHelper:
 
         if self.is_flushing:
             return
-        self.mutex.acquire(True, 60)
-        self.is_flushing = True
-        batch_flush(self.device_cache.values(), PUBKEY_TOKEN_TABLE)
-        batch_flush(self.closed_group_cache.values(), CLOSED_GROUP_TABLE)
-        self.is_flushing = False
-        self.mutex.release()
+        try:
+            self.mutex.acquire(True, 60)
+            self.is_flushing = True
+            batch_flush(self.device_cache.values(), PUBKEY_TOKEN_TABLE)
+            batch_flush(self.closed_group_cache.values(), CLOSED_GROUP_TABLE)
+            self.is_flushing = False
+            self.mutex.release()
+        except Exception as e:
+            self.is_flushing = False
+            self.mutex.release()
+            raise e
 
     def migrate_database_if_needed(self):
 
