@@ -151,7 +151,8 @@ class PushNotificationHelperV2:
                             alert = PayloadAlert(title='Session', body='You\'ve got a new message')
                             payload = Payload(alert=alert, badge=1, sound="default",
                                               mutable_content=True, category="SECRET",
-                                              custom={'ENCRYPTED_DATA': message['data']})
+                                              custom={'ENCRYPTED_DATA': message['data'],
+                                                      'remote': 1})
                             notifications_ios.append(Notification(token=device_token, payload=payload))
                         else:
                             notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
