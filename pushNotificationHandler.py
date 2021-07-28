@@ -1,7 +1,7 @@
 from queue import *
 import asyncio
 from threading import Thread
-from PyAPNs.apns2.client import APNsClient, NotificationPriority, Notification
+from PyAPNs.apns2.client import APNsClient, NotificationPriority, Notification, NotificationType
 from PyAPNs.apns2.payload import Payload, PayloadAlert
 from PyAPNs.apns2.errors import *
 from utils import *
@@ -213,7 +213,8 @@ class PushNotificationHelperV2:
         self.notification_counter_ios += len(notifications)
         results = {}
         try:
-            results = self.apns.send_notification_batch(notifications=notifications, topic=BUNDLE_ID, priority=priority)
+            results = self.apns.send_notification_batch(notifications=notifications, topic=BUNDLE_ID,
+                                                        priority=priority, push_type=NotificationType.Alert)
         except ConnectionFailed:
             self.logger.error('Connection failed')
             self.execute_push_ios(notifications, priority)
