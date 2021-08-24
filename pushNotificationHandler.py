@@ -44,6 +44,9 @@ class PushNotificationHelperV2:
             self.database_helper.store_data(self.last_statistics_date, now,
                                             self.notification_counter_ios, self.notification_counter_android,
                                             self.total_messages, self.closed_group_messages)
+            self.observer.push_statistic_data(self.last_statistics_date, now,
+                                              self.notification_counter_ios, self.notification_counter_android,
+                                              self.total_messages, self.closed_group_messages)
             self.last_statistics_date = now
             self.notification_counter_ios = 0
             self.notification_counter_android = 0

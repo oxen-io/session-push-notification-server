@@ -3,7 +3,7 @@ from telepot.loop import MessageLoop
 from datetime import datetime
 import asyncio
 from threading import Thread
-from const import debug_mode
+from const import *
 
 
 class Observer:
@@ -31,6 +31,17 @@ class Observer:
         self.last_android_pn_number = android_pn_number
         self.last_time_checked = datetime.now()
         self.logger.info('Check alive.')
+
+    def push_statistic_data(self, last_statistics_date, now, ios_pn_number, android_pn_number, total_message_number, closed_group_message_number):
+        fmt = "%Y-%m-%d %H:%M:%S"
+        json_string = {START_DATE: last_statistics_date.strftime(fmt),
+                       END_DATE: now.strftime(fmt),
+                       IOS_PN_NUMBER: ios_pn_number,
+                       ANDROID_PN_NUMBER: android_pn_number,
+                       TOTAL_MESSAGE_NUMBER: total_message_number,
+                       CLOSED_GROUP_MESSAGE_NUMBER: closed_group_message_number}.__str__()
+        for chat_id in self.subscribers:
+            self.bot.sendMessage(chat_id, json_string)
 
     def handle(self, message):
         content_type, chat_type, chat_id = telepot.glance(message)
