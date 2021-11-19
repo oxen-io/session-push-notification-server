@@ -18,30 +18,24 @@ class Observer:
         self.thread = Thread(target=self.run_check_alive_task)
         self.message_loop = MessageLoop(self.bot, self.handle)
 
-    def check_push_notification(self, ios_pn_number, android_pn_number):
-        if ios_pn_number == self.last_ios_pn_number and not debug_mode:
+    def check_push_notification(self, stats_data):
+        if stats_data.ios_pn_number == self.last_ios_pn_number and not debug_mode:
             for chat_id in self.subscribers:
                 self.bot.sendMessage(chat_id, 'No new iOS PN during the last period. iOS PN might be crashed.')
 
-        if android_pn_number == self.last_android_pn_number and not debug_mode:
+        if stats_data.android_pn_number == self.last_android_pn_number and not debug_mode:
             for chat_id in self.subscribers:
                 self.bot.sendMessage(chat_id, 'No new Android PN during the last period. Android PN might be crashed.')
 
-        self.last_ios_pn_number = ios_pn_number
-        self.last_android_pn_number = android_pn_number
+        self.last_ios_pn_number = stats_data.ios_pn_number
+        self.last_android_pn_number = stats_data.android_pn_number
         self.last_time_checked = datetime.now()
         self.logger.info('Check alive.')
 
-    def push_statistic_data(self, last_statistics_date, now, ios_pn_number, android_pn_number, total_message_number, closed_group_message_number):
-        fmt = "%Y-%m-%d %H:%M:%S"
-        json_string = {START_DATE: last_statistics_date.strftime(fmt),
-                       END_DATE: now.strftime(fmt),
-                       IOS_PN_NUMBER: ios_pn_number,
-                       ANDROID_PN_NUMBER: android_pn_number,
-                       TOTAL_MESSAGE_NUMBER: total_message_number,
-                       CLOSED_GROUP_MESSAGE_NUMBER: closed_group_message_number}.__str__()
+    def push_statistic_data(self, stats_data, now):
+        info_string = f"Store data at {now}:\n" + stats_data.description()
         for chat_id in self.subscribers:
-            self.bot.sendMessage(chat_id, json_string)
+            self.bot.sendMessage(chat_id, info_string)
 
     def handle(self, message):
         content_type, chat_type, chat_id = telepot.glance(message)

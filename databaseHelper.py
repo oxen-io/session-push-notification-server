@@ -159,16 +159,18 @@ class DatabaseHelper:
         migrate(PUBKEY_TOKEN_DB_V2, PUBKEY_TOKEN_TABLE, {PUBKEY: TOKEN})
         migrate(CLOSED_GROUP_DB, CLOSED_GROUP_TABLE, {CLOSED_GROUP: MEMBERS})
 
-    def store_data(self, last_statistics_date, now, ios_pn_number, android_pn_number, total_message_number, closed_group_message_number):
+    def store_data(self, stats_data, now):
         self.mutex.acquire(True, 60)
         db = self.tinyDB.table(STATISTICS_TABLE)
         fmt = "%Y-%m-%d %H:%M:%S"
-        db.insert({START_DATE: last_statistics_date.strftime(fmt),
+        db.insert({START_DATE: stats_data.last_statistics_date.strftime(fmt),
                    END_DATE: now.strftime(fmt),
-                   IOS_PN_NUMBER: ios_pn_number,
-                   ANDROID_PN_NUMBER: android_pn_number,
-                   TOTAL_MESSAGE_NUMBER: total_message_number,
-                   CLOSED_GROUP_MESSAGE_NUMBER: closed_group_message_number})
+                   IOS_PN_NUMBER: stats_data.notification_counter_ios,
+                   ANDROID_PN_NUMBER: stats_data.notification_counter_android,
+                   TOTAL_MESSAGE_NUMBER: stats_data.total_messages,
+                   CLOSED_GROUP_MESSAGE_NUMBER: stats_data.closed_group_messages,
+                   UNTRACKED_MESSAGE_NUMBER: stats_data.untracked_messages,
+                   DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER: stats_data.deduplicated_one_on_one_messages})
         self.mutex.release()
 
     def get_data(self, start_date, end_date):

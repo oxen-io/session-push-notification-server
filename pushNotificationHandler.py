@@ -9,6 +9,7 @@ import firebase_admin
 from firebase_admin import credentials, messaging
 from firebase_admin.exceptions import *
 from databaseHelper import *
+from pushNotificationStats import *
 
 
 # PN approach V2 #
@@ -25,33 +26,17 @@ class PushNotificationHelperV2:
         self.stop_running = False
         self.thread = Thread(target=self.run_push_notification_task)
         self.db_thread = Thread(target=self.run_sync_to_db_task)
-        self.last_statistics_date = datetime.now()
-        self.total_messages = 0
-        self.notification_counter_ios = 0
-        self.notification_counter_android = 0
-        self.closed_group_messages = 0
+        self.stats_data = PushNotificationStats()
 
     # Statistics #
     def store_data_if_needed(self):
         now = datetime.now()
-        time_diff = now - self.last_statistics_date
-        if time_diff.total_seconds() >= 12 * 60 * 60:
-            self.logger.info(f"Store data at {now}:\n" +
-                             f"iOS push notification number: {self.notification_counter_ios}\n" +
-                             f"Android push notification number: {self.notification_counter_android}\n" +
-                             f"Closed group message number: {self.closed_group_messages}\n" +
-                             f"Total message number: {self.total_messages}\n")
-            self.database_helper.store_data(self.last_statistics_date, now,
-                                            self.notification_counter_ios, self.notification_counter_android,
-                                            self.total_messages, self.closed_group_messages)
-            self.observer.push_statistic_data(self.last_statistics_date, now,
-                                              self.notification_counter_ios, self.notification_counter_android,
-                                              self.total_messages, self.closed_group_messages)
-            self.last_statistics_date = now
-            self.notification_counter_ios = 0
-            self.notification_counter_android = 0
-            self.total_messages = 0
-            self.closed_group_messages = 0
+        if self.stats_data.should_store_data(now):
+            self.logger.info(f"Store data at {now}:\n" + self.stats_data.description())
+            current_data = self.stats_data.copy()
+            self.stats_data.reset(now)
+            self.database_helper.store_data(current_data, now)
+            self.observer.push_statistic_data(current_data, now)
 
     # Registration #
     def remove_device_token(self, device_token):
@@ -113,7 +98,7 @@ class PushNotificationHelperV2:
                     return
             self.logger.info(f"Start to sync to DB at {datetime.now()}.")
             try:
-                self.observer.check_push_notification(self.notification_counter_ios, self.notification_counter_android)
+                self.observer.check_push_notification(self.stats_data)
                 self.store_data_if_needed()
                 self.database_helper.flush()
             except Exception as e:
@@ -163,7 +148,7 @@ class PushNotificationHelperV2:
                                                              android=messaging.AndroidConfig(priority='high'))
                             notifications_android.append(notification)
 
-        self.total_messages += len(messages_wait_to_push)
+        self.stats_data.increment_total_message(len(messages_wait_to_push))
         notifications_ios = []
         notifications_android = []
         for message in messages_wait_to_push:
@@ -171,11 +156,13 @@ class PushNotificationHelperV2:
             device = self.database_helper.get_device(recipient)
             closed_group = self.database_helper.get_closed_group(recipient)
             if device:
+                self.stats_data.increment_deduplicated_one_on_one_message(1)
                 generate_notifications([recipient])
             elif closed_group:
-                self.closed_group_messages += 1
+                self.stats_data.increment_closed_group_message(1)
                 generate_notifications(closed_group.members)
             else:
+                self.stats_data.increment_untracked_message(1)
                 if debug_mode:
                     self.logger.info(f'Ignore message to {recipient}.')
         try:
@@ -189,7 +176,7 @@ class PushNotificationHelperV2:
         if len(notifications) == 0:
             return
         self.logger.info(f"Push {len(notifications)} notifications for Android.")
-        self.notification_counter_android += len(notifications)
+        self.stats_data.increment_android_pn(len(notifications))
         results = None
         try:
             results = messaging.send_all(messages=notifications, app=self.firebase_app)
@@ -213,7 +200,7 @@ class PushNotificationHelperV2:
         if len(notifications) == 0:
             return
         self.logger.info(f"Push {len(notifications)} notifications for iOS.")
-        self.notification_counter_ios += len(notifications)
+        self.stats_data.increment_ios_pn(len(notifications))
         results = {}
         try:
             results = self.apns.send_notification_batch(notifications=notifications, topic=BUNDLE_ID,
