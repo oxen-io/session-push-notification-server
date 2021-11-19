@@ -9,7 +9,7 @@ from const import *
 class Observer:
     def __init__(self, logger):
         self.logger = logger
-        self.bot = telepot.Bot("1685024629:AAHIvVUUdErsbtXW5UvoEw00GQM2TVTUFe8")
+        self.bot = telepot.Bot("1685024629:AAHIvVUUdErsbtXW5UvoEw00GQM2TVTUFe8") if not debug_mode else telepot.Bot()
         self.last_ios_pn_number = 0
         self.last_android_pn_number = 0
         self.last_time_checked = None
@@ -19,16 +19,16 @@ class Observer:
         self.message_loop = MessageLoop(self.bot, self.handle)
 
     def check_push_notification(self, stats_data):
-        if stats_data.ios_pn_number == self.last_ios_pn_number and not debug_mode:
+        if stats_data.notification_counter_ios == self.last_ios_pn_number and not debug_mode:
             for chat_id in self.subscribers:
                 self.bot.sendMessage(chat_id, 'No new iOS PN during the last period. iOS PN might be crashed.')
 
-        if stats_data.android_pn_number == self.last_android_pn_number and not debug_mode:
+        if stats_data.notification_counter_android == self.last_android_pn_number and not debug_mode:
             for chat_id in self.subscribers:
                 self.bot.sendMessage(chat_id, 'No new Android PN during the last period. Android PN might be crashed.')
 
-        self.last_ios_pn_number = stats_data.ios_pn_number
-        self.last_android_pn_number = stats_data.android_pn_number
+        self.last_ios_pn_number = stats_data.notification_counter_ios
+        self.last_android_pn_number = stats_data.notification_counter_android
         self.last_time_checked = datetime.now()
         self.logger.info('Check alive.')
 
