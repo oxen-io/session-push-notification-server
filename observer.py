@@ -9,7 +9,7 @@ from const import *
 class Observer:
     def __init__(self, logger):
         self.logger = logger
-        self.bot = telepot.Bot("1685024629:AAHIvVUUdErsbtXW5UvoEw00GQM2TVTUFe8") if not debug_mode else telepot.Bot("")
+        self.bot = telepot.Bot("1685024629:AAHIvVUUdErsbtXW5UvoEw00GQM2TVTUFe8")
         self.last_ios_pn_number = 0
         self.last_android_pn_number = 0
         self.last_time_checked = None
@@ -54,7 +54,8 @@ class Observer:
 
     def run(self):
         self.is_running = True
-        self.message_loop.run_as_thread(relax=1)
+        if not debug_mode:
+            self.message_loop.run_as_thread(relax=1)
         self.thread.start()
 
     def stop(self):
