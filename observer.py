@@ -3,7 +3,7 @@ from telepot.loop import MessageLoop
 from datetime import datetime
 import asyncio
 from threading import Thread
-from const import debug_mode
+from const import *
 
 
 class Observer:
@@ -18,19 +18,24 @@ class Observer:
         self.thread = Thread(target=self.run_check_alive_task)
         self.message_loop = MessageLoop(self.bot, self.handle)
 
-    def check_push_notification(self, ios_pn_number, android_pn_number):
-        if ios_pn_number == self.last_ios_pn_number and not debug_mode:
+    def check_push_notification(self, stats_data):
+        if stats_data.notification_counter_ios == self.last_ios_pn_number and not debug_mode:
             for chat_id in self.subscribers:
                 self.bot.sendMessage(chat_id, 'No new iOS PN during the last period. iOS PN might be crashed.')
 
-        if android_pn_number == self.last_android_pn_number and not debug_mode:
+        if stats_data.notification_counter_android == self.last_android_pn_number and not debug_mode:
             for chat_id in self.subscribers:
                 self.bot.sendMessage(chat_id, 'No new Android PN during the last period. Android PN might be crashed.')
 
-        self.last_ios_pn_number = ios_pn_number
-        self.last_android_pn_number = android_pn_number
+        self.last_ios_pn_number = stats_data.notification_counter_ios
+        self.last_android_pn_number = stats_data.notification_counter_android
         self.last_time_checked = datetime.now()
         self.logger.info('Check alive.')
+
+    def push_statistic_data(self, stats_data, now):
+        info_string = f"Store data at {now}:\n" + stats_data.description()
+        for chat_id in self.subscribers:
+            self.bot.sendMessage(chat_id, info_string)
 
     def handle(self, message):
         content_type, chat_type, chat_id = telepot.glance(message)
@@ -49,7 +54,8 @@ class Observer:
 
     def run(self):
         self.is_running = True
-        self.message_loop.run_as_thread(relax=1)
+        if not debug_mode:
+            self.message_loop.run_as_thread(relax=1)
         self.thread.start()
 
     def stop(self):

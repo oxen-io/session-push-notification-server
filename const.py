@@ -26,6 +26,8 @@ ANDROID_DEVICE_NUMBER = 'android_device_number'
 TOTAL_MESSAGE_NUMBER = 'total_message_number'
 TOTAL_SESSION_ID_NUMBER = 'total_session_id_number'
 CLOSED_GROUP_MESSAGE_NUMBER = 'closed_group_message_number'
+UNTRACKED_MESSAGE_NUMBER = 'untracked_message_number'
+DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER = 'deduplicated_1_1_message_number'
 
 NONCE_LENGTH = 12
 TAG_LENGTH = 16

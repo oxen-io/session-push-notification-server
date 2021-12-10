@@ -97,7 +97,9 @@
                         "ios_pn_number": Number,
                         "android_pn_number": Number,
                         "closed_group_message_number": Number,
-                        "total_message_number": Number
+                        "total_message_number": Number,
+                        "deduplicated_1_1_message_number": Number,
+                        "untracked_message_number": Number
                     },
                 ]
     }

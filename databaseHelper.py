@@ -1,3 +1,4 @@
+import time
 from json import JSONDecodeError
 
 import utils
@@ -82,19 +83,29 @@ class DatabaseHelper:
     def load_cache(self):
         device_table = self.tinyDB.table(PUBKEY_TOKEN_TABLE)
         devices = device_table.all()
+        need_to_remove = []
         for device_mapping in devices:
-            device = Device(doc_id=device_mapping.doc_id)
-            device.from_mapping(device_mapping)
-            self.device_cache[device.session_id] = device
-            for token in device.tokens:
-                self.token_device_mapping[token] = device
+            if device_mapping[PUBKEY]:
+                device = Device(doc_id=device_mapping.doc_id)
+                device.from_mapping(device_mapping)
+                self.device_cache[device.session_id] = device
+                for token in device.tokens:
+                    self.token_device_mapping[token] = device
+            else:
+                need_to_remove.append(device_mapping.doc_id)
+        device_table.remove(doc_ids=need_to_remove)
 
         closed_group_table = self.tinyDB.table(CLOSED_GROUP_TABLE)
         closed_groups = closed_group_table.all()
+        need_to_remove = []
         for closed_group_mapping in closed_groups:
-            closed_group = ClosedGroup(doc_id=closed_group_mapping.doc_id)
-            closed_group.from_mapping(closed_group_mapping)
-            self.closed_group_cache[closed_group.closed_group_id] = closed_group
+            if closed_group_mapping[CLOSED_GROUP]:
+                closed_group = ClosedGroup(doc_id=closed_group_mapping.doc_id)
+                closed_group.from_mapping(closed_group_mapping)
+                self.closed_group_cache[closed_group.closed_group_id] = closed_group
+            else:
+                need_to_remove.append(closed_group_mapping.doc_id)
+        closed_group_table.remove(doc_ids=need_to_remove)
 
     def flush(self):
         def batch_flush(items, table):
@@ -114,12 +125,17 @@ class DatabaseHelper:
 
         if self.is_flushing:
             return
-        self.is_flushing = True
-        self.mutex.acquire(True)
-        batch_flush(self.device_cache.copy().values(), PUBKEY_TOKEN_TABLE)
-        batch_flush(self.closed_group_cache.copy().values(), CLOSED_GROUP_TABLE)
-        self.mutex.release()
-        self.is_flushing = False
+        try:
+            self.mutex.acquire(True, 60)
+            self.is_flushing = True
+            batch_flush(self.device_cache.values(), PUBKEY_TOKEN_TABLE)
+            batch_flush(self.closed_group_cache.values(), CLOSED_GROUP_TABLE)
+            self.is_flushing = False
+            self.mutex.release()
+        except Exception as e:
+            self.is_flushing = False
+            self.mutex.release()
+            raise e
 
     def migrate_database_if_needed(self):
 
@@ -143,16 +159,18 @@ class DatabaseHelper:
         migrate(PUBKEY_TOKEN_DB_V2, PUBKEY_TOKEN_TABLE, {PUBKEY: TOKEN})
         migrate(CLOSED_GROUP_DB, CLOSED_GROUP_TABLE, {CLOSED_GROUP: MEMBERS})
 
-    def store_data(self, last_statistics_date, now, ios_pn_number, android_pn_number, total_message_number, closed_group_message_number):
-        self.mutex.acquire(True)
+    def store_data(self, stats_data, now):
+        self.mutex.acquire(True, 60)
         db = self.tinyDB.table(STATISTICS_TABLE)
         fmt = "%Y-%m-%d %H:%M:%S"
-        db.insert({START_DATE: last_statistics_date.strftime(fmt),
+        db.insert({START_DATE: stats_data.last_statistics_date.strftime(fmt),
                    END_DATE: now.strftime(fmt),
-                   IOS_PN_NUMBER: ios_pn_number,
-                   ANDROID_PN_NUMBER: android_pn_number,
-                   TOTAL_MESSAGE_NUMBER: total_message_number,
-                   CLOSED_GROUP_MESSAGE_NUMBER: closed_group_message_number})
+                   IOS_PN_NUMBER: stats_data.notification_counter_ios,
+                   ANDROID_PN_NUMBER: stats_data.notification_counter_android,
+                   TOTAL_MESSAGE_NUMBER: stats_data.total_messages,
+                   CLOSED_GROUP_MESSAGE_NUMBER: stats_data.closed_group_messages,
+                   UNTRACKED_MESSAGE_NUMBER: stats_data.untracked_messages,
+                   DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER: stats_data.deduplicated_one_on_one_messages})
         self.mutex.release()
 
     def get_data(self, start_date, end_date):
@@ -171,39 +189,46 @@ class DatabaseHelper:
             date_2 = try_to_convert_datetime(date_str)
             return date_1 > date_2 if ascending else date_1 < date_2
 
-        try:
-            self.mutex.acquire(True)
-            data_query = Query()
-            if start_date and end_date:
-                data = db.search(data_query[START_DATE].test(test_func, start_date, True) &
-                                 data_query[END_DATE].test(test_func, end_date, False))
-            elif start_date:
-                data = db.search(data_query[START_DATE].test(test_func, start_date, True))
-            else:
-                data = db.all()
+        def get_statistics_data():
+            result = None
+            self.mutex.acquire(True, 60)
+            try:
+                data_query = Query()
+                if start_date and end_date:
+                    data = db.search(data_query[START_DATE].test(test_func, start_date, True) &
+                                     data_query[END_DATE].test(test_func, end_date, False))
+                elif start_date:
+                    data = db.search(data_query[START_DATE].test(test_func, start_date, True))
+                else:
+                    data = db.all()
+                ios_device_number = 0
+                android_device_number = 0
+                total_session_id_number = 0
+                for session_id, device in self.device_cache.items():
+                    if len(device.tokens) > 0:
+                        total_session_id_number += 1
+                        for token in device.tokens:
+                            if utils.is_ios_device_token(token):
+                                ios_device_number += 1
+                            else:
+                                android_device_number += 1
+
+                result = {DATA: data,
+                          IOS_DEVICE_NUMBER: ios_device_number,
+                          ANDROID_DEVICE_NUMBER: android_device_number,
+                          TOTAL_SESSION_ID_NUMBER: total_session_id_number}
+            except JSONDecodeError as e:
+                self.correct_database(e.pos)
+
             self.mutex.release()
+            return result
 
-            ios_device_number = 0
-            android_device_number = 0
-            total_session_id_number = 0
-            for session_id, device in self.device_cache.items():
-                if len(device.tokens) > 0:
-                    total_session_id_number += 1
-                    for token in device.tokens:
-                        if utils.is_ios_device_token(token):
-                            ios_device_number += 1
-                        else:
-                            android_device_number += 1
-
-            return {DATA: data,
-                    IOS_DEVICE_NUMBER: ios_device_number,
-                    ANDROID_DEVICE_NUMBER: android_device_number,
-                    TOTAL_SESSION_ID_NUMBER: total_session_id_number}
-
-        except JSONDecodeError as e:
-            self.correct_database(e.pos)
-            self.mutex.release()
-            return self.get_data(start_date, end_date)
+        final_result = get_statistics_data()
+        retry = 0
+        while final_result is None and retry < 10:
+            final_result = get_statistics_data()
+            retry += 1
+        return final_result
 
     def get_device(self, session_id):
         return self.device_cache.get(session_id, None)
@@ -214,7 +239,6 @@ class DatabaseHelper:
     def correct_database(self, index):
         if self.is_flushing:
             return
-
         if os.path.isfile(DATABASE):
             with open(DATABASE, 'rb') as db:
                 string = db.read()

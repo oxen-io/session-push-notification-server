@@ -77,14 +77,14 @@ class PushNotificationHandlerTests(unittest.TestCase):
         self.assertTrue(self.PN_helper_v2.message_queue.not_empty)
 
         self.PN_helper_v2.send_push_notification()
-        self.assertEqual(self.PN_helper_v2.notification_counter_android, 1)
+        self.assertEqual(self.PN_helper_v2.stats_data.notification_counter_android, 1)
 
         test_closed_group_message = {'send_to': TEST_CLOSED_GROUP_ID,
                                      'data': TEST_DATA}
         self.PN_helper_v2.add_message_to_queue(test_closed_group_message)
         self.PN_helper_v2.send_push_notification()
-        self.assertEqual(self.PN_helper_v2.closed_group_messages, 1)
-        self.assertEqual(self.PN_helper_v2.notification_counter_android, 2)
+        self.assertEqual(self.PN_helper_v2.stats_data.closed_group_messages, 1)
+        self.assertEqual(self.PN_helper_v2.stats_data.notification_counter_android, 2)
 
     def test_5_handle_push_fail(self):
         self.PN_helper_v2.register(TEST_TOKEN_0, TEST_SESSION_ID)
