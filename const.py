@@ -33,6 +33,8 @@ NONCE_LENGTH = 12
 TAG_LENGTH = 16
 
 DATABASE = 'session_pn_server_db.json'
+DATABASE_V2 = 'session_pn_server.db'
+DATABASE_V2_BACKUP = 'session_pn_server_backup.db'
 PUBKEY_TOKEN_TABLE = 'token_pubkey_table'
 CLOSED_GROUP_TABLE = 'closed_group_table'
 STATISTICS_TABLE = 'statistics_table'

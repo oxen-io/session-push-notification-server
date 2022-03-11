@@ -37,6 +37,16 @@ class Observer:
         for chat_id in self.subscribers:
             self.bot.sendMessage(chat_id, info_string)
 
+    def push_error(self, error_message):
+        snippet = f'[Error]⚠️ {error_message}'
+        for chat_id in self.subscribers:
+            self.bot.sendMessage(chat_id, snippet)
+
+    def push_info(self, message):
+        snippet = f'[Info]💚 {message}'
+        for chat_id in self.subscribers:
+            self.bot.sendMessage(chat_id, message)
+
     def handle(self, message):
         content_type, chat_type, chat_id = telepot.glance(message)
         if content_type == 'text':

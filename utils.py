@@ -8,6 +8,30 @@ from cryptography.hazmat.backends import default_backend
 from const import *
 from Crypto.Random import get_random_bytes
 import json
+from datetime import datetime
+from threading import Thread
+from queue import Queue
+
+
+def timestamp_to_formatted_date(timestamp):
+    if timestamp is None:
+        return None
+    date = datetime.fromtimestamp(timestamp)
+    fmt = "%Y-%m-%d %H:%M:%S"
+    return date.strftime(fmt)
+
+
+def formatted_date_to_timestamp(date_str):
+    if date_str is None:
+        return None
+    formats = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+    for fmt in formats:
+        try:
+            date = datetime.strptime(date_str, fmt)
+            return date.timestamp()
+        except ValueError:
+            pass
+    return None
 
 
 def is_ios_device_token(token):
@@ -57,3 +81,28 @@ def onion_request_data_handler(data):
     body = json.loads(body_as_string)
     body[CIPHERTEXT] = b64encode(ciphertext)
     return body
+
+
+class TaskQueue(Queue):
+
+    def __init__(self, num_workers=1):
+        Queue.__init__(self)
+        self.num_workers = num_workers
+        self.start_workers()
+
+    def add_task(self, task, *args, **kwargs):
+        args = args or ()
+        kwargs = kwargs or {}
+        self.put((task, args, kwargs))
+
+    def start_workers(self):
+        for i in range(self.num_workers):
+            t = Thread(target=self.worker)
+            t.daemon = True
+            t.start()
+
+    def worker(self):
+        while True:
+            item, args, kwargs = self.get()
+            item(*args, **kwargs)
+            self.task_done()
