@@ -45,7 +45,7 @@ class Observer:
     def push_info(self, message):
         snippet = f'[Info]💚 {message}'
         for chat_id in self.subscribers:
-            self.bot.sendMessage(chat_id, message)
+            self.bot.sendMessage(chat_id, snippet)
 
     def handle(self, message):
         content_type, chat_type, chat_id = telepot.glance(message)
