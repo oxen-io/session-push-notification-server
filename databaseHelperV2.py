@@ -9,7 +9,6 @@ from utils import TaskQueue
 
 class DatabaseHelperV2:
     def __init__(self):
-        self.db_connection = sqlite3.connect(DATABASE_V2)
         self.last_backup = None
         self.task_queue = TaskQueue()
         self.device_cache = {}  # {session_id: Device}
@@ -17,9 +16,6 @@ class DatabaseHelperV2:
         self.closed_group_cache = {}  # {closed_group_id: ClosedGroup}
         self.create_tables_if_needed()
         self.back_up_database_async()
-
-    def __del__(self):
-        self.db_connection.close()
 
     # Database backup
     def should_back_up_database(self, now):
@@ -31,21 +27,26 @@ class DatabaseHelperV2:
 
     def back_up_database(self):
         self.last_backup = datetime.now()
+        db_connection = sqlite3.connect(DATABASE_V2)
         backup_db_connection = sqlite3.connect(DATABASE_V2_BACKUP)
         with backup_db_connection:
-            self.db_connection.backup(backup_db_connection)
+            db_connection.backup(backup_db_connection)
         backup_db_connection.close()
+        db_connection.close()
 
     def create_tables_if_needed(self):
-        cursor = self.db_connection.cursor()
+        db_connection = sqlite3.connect(DATABASE_V2)
+        cursor = db_connection.cursor()
         cursor.execute(SQLStatements.CREATE_DEVICE_TOKEN_MAPPING_TABLE)
         cursor.execute(SQLStatements.CREATE_CLOSED_GROUP_MEMBER_MAPPING_TABLE)
         cursor.execute(SQLStatements.CREATE_STATISTICS_DATA_TABLE)
-        self.db_connection.commit()
+        db_connection.commit()
         cursor.close()
+        db_connection.close()
 
     def populate_cache(self):
-        cursor = self.db_connection.cursor()
+        db_connection = sqlite3.connect(DATABASE_V2)
+        cursor = db_connection.cursor()
 
         # Populate device token mapping cache
         query = SQLStatements.FETCH.format('*', PUBKEY_TOKEN_TABLE)
@@ -71,12 +72,14 @@ class DatabaseHelperV2:
             self.closed_group_cache[closed_group_id] = closed_group
 
         cursor.close()
+        db_connection.close()
 
     def flush_async(self):
         self.task_queue.add_task(self.flush)
 
     def flush(self):
-        cursor = self.db_connection.cursor()
+        db_connection = sqlite3.connect(DATABASE_V2)
+        cursor = db_connection.cursor()
 
         def batch_update(table, key, cache):
             rows_to_update = list()
@@ -94,8 +97,9 @@ class DatabaseHelperV2:
         # Update closed group into database
         batch_update(CLOSED_GROUP_TABLE, CLOSED_GROUP, self.closed_group_cache)
 
-        self.db_connection.commit()
+        db_connection.commit()
         cursor.close()
+        db_connection.close()
 
     def get_device(self, session_id):
         return self.device_cache.get(session_id, None)
@@ -108,14 +112,17 @@ class DatabaseHelperV2:
         self.task_queue.add_task(self.store_stats_data, stats_data)
 
     def store_stats_data(self, stats_data):
-        cursor = self.db_connection.cursor()
+        db_connection = sqlite3.connect(DATABASE_V2)
+        cursor = db_connection.cursor()
         statement = SQLStatements.NEW.format(STATISTICS_TABLE, ','.join('?' * 8))
         cursor.execute(statement, stats_data.to_database_row())
-        self.db_connection.commit()
+        db_connection.commit()
         cursor.close()
+        db_connection.close()
 
     def get_stats_data(self, start_date, end_date):
-        cursor = self.db_connection.cursor()
+        db_connection = sqlite3.connect(DATABASE_V2)
+        cursor = db_connection.cursor()
         statement = SQLStatements.FETCH.format('*', STATISTICS_TABLE)
         if start_date:
             statement += f'WHERE {START_DATE} >= {utils.formatted_date_to_timestamp(start_date)}'
@@ -135,6 +142,9 @@ class DatabaseHelperV2:
                   IOS_DEVICE_NUMBER: ios,
                   ANDROID_DEVICE_NUMBER: android,
                   TOTAL_SESSION_ID_NUMBER: total}
+
+        cursor.close()
+        db_connection.close()
         return result
 
     def get_device_number(self):

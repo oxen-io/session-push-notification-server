@@ -72,7 +72,7 @@ class PushNotificationHelperV2:
 
         # When an existed session id adds a new device
         device.add_token(device_token)
-        device.save(self.database_helper)
+        device.save_to_cache(self.database_helper)
         self.push_fails[device_token] = 0
 
     def unregister(self, device_token):

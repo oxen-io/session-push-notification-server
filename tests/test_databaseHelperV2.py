@@ -27,7 +27,7 @@ class DatabaseHelperV2Tests(unittest.TestCase):
     def test_1_flush(self):
         test_device = Device()
         test_device.session_id = TEST_SESSION_ID
-        test_device.tokens.add(TEST_TOKEN_0)
+        test_device.add_token(TEST_TOKEN_0)
         test_device.save_to_cache(self.databaseHelper)
 
         test_device_in_cache = self.databaseHelper.get_device(TEST_SESSION_ID)
@@ -35,7 +35,7 @@ class DatabaseHelperV2Tests(unittest.TestCase):
 
         test_closed_group = ClosedGroup()
         test_closed_group.closed_group_id = TEST_CLOSED_GROUP_ID
-        test_closed_group.members.add(TEST_SESSION_ID)
+        test_closed_group.add_member(TEST_SESSION_ID)
         test_closed_group.save_to_cache(self.databaseHelper)
 
         test_closed_group_in_cache = self.databaseHelper.get_closed_group(TEST_CLOSED_GROUP_ID)

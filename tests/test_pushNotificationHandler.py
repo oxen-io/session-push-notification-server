@@ -9,8 +9,7 @@ tests_cases = ['register',
                'send_push_notification',
                'handle_push_fail']
 
-database_helper.migrate_database_if_needed()
-database_helper.load_cache()
+database_helper.populate_cache()
 
 
 class PushNotificationHandlerTests(unittest.TestCase):
