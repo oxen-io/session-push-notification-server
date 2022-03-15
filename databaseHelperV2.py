@@ -16,14 +16,18 @@ class DatabaseHelperV2:
         self.token_device_mapping = {}  # {token: Device}
         self.closed_group_cache = {}  # {closed_group_id: ClosedGroup}
         self.create_tables_if_needed()
-        self.back_up_database()
+        self.back_up_database_async()
 
     def __del__(self):
         self.db_connection.close()
 
+    # Database backup
     def should_back_up_database(self, now):
         time_diff = now - self.last_backup
         return time_diff.total_seconds() >= 24 * 60 * 60
+
+    def back_up_database_async(self):
+        self.task_queue.add_task(self.back_up_database)
 
     def back_up_database(self):
         self.last_backup = datetime.now()
@@ -68,6 +72,9 @@ class DatabaseHelperV2:
 
         cursor.close()
 
+    def flush_async(self):
+        self.task_queue.add_task(self.flush)
+
     def flush(self):
         cursor = self.db_connection.cursor()
 
@@ -97,6 +104,9 @@ class DatabaseHelperV2:
         return self.closed_group_cache.get(closed_group_id, None)
 
     # Statistics
+    def store_stats_data_async(self, stats_data):
+        self.task_queue.add_task(self.store_stats_data, stats_data)
+
     def store_stats_data(self, stats_data):
         cursor = self.db_connection.cursor()
         statement = SQLStatements.NEW.format(STATISTICS_TABLE, ','.join('?' * 8))

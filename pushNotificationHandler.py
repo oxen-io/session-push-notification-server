@@ -36,16 +36,16 @@ class PushNotificationHelperV2:
             self.logger.info(f"Store data at {now}:\n" + self.stats_data.description())
             current_data = self.stats_data.copy()
             self.stats_data.reset(now)
-            self.database_helper.store_stats_data(current_data)
+            self.database_helper.store_stats_data_async(current_data)
             self.observer.push_statistic_data(current_data, now)
 
     # Database backup #
-    def back_up_data_id_needed(self):
+    def back_up_data_if_needed(self):
         now = datetime.now()
         if self.database_helper.should_back_up_database(now):
             info = f"Back up database at {now}.\n"
             self.logger.info(info)
-            self.database_helper.back_up_database()
+            self.database_helper.back_up_database_async()
             self.observer.push_info(info)
 
     # Registration #
@@ -105,14 +105,15 @@ class PushNotificationHelperV2:
             try:
                 for i in range(3 * 60):
                     await asyncio.sleep(1)
-                    # Check should store stats data every second
+                    # Check should store stats data & should back up database every second
                     self.store_data_if_needed()
+                    self.back_up_data_if_needed()
                     if self.stop_running:
                         return
                 self.logger.info(f"Start to sync to DB at {datetime.now()}.")
                 self.observer.check_push_notification(self.stats_data)
                 # Flush cache to database every 3 minutes
-                self.database_helper.flush()
+                self.database_helper.flush_async()
             except Exception as e:
                 error_message = f"Flush exception: {e}"
                 self.logger.error(error_message)
