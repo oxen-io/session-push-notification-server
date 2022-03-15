@@ -10,7 +10,6 @@ tornado~=6.0.3
 requests-futures==1.0.0
 cryptography==3.4.7
 urllib3~=1.26.3
-tinydb~=4.4.0
 
 pytest~=5.2.1
 pyjwt~=1.7.1
