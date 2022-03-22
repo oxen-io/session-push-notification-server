@@ -152,6 +152,7 @@ class APNsClient(object):
         """
         with self._connection.get_response(stream_id) as response:
             if response.status == 200:
+                response.close()
                 return 'Success'
             else:
                 raw_data = response.read().decode('utf-8')
