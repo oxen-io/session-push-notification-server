@@ -1,8 +1,10 @@
 from datetime import datetime
 import copy
+from const import *
+import utils
 
 
-class PushNotificationStats(object):
+class PushNotificationStats:
     # Init #
     def __init__(self):
         self.last_statistics_date = datetime.now()
@@ -36,6 +38,29 @@ class PushNotificationStats(object):
         self.closed_group_messages = 0
         self.untracked_messages = 0
         self.deduplicated_one_on_one_messages = 0
+
+    def to_database_row(self):
+        return (self.last_statistics_date.timestamp(),
+                datetime.now().timestamp(),
+                self.notification_counter_ios,
+                self.notification_counter_android,
+                self.total_messages,
+                self.closed_group_messages,
+                self.untracked_messages,
+                self.deduplicated_one_on_one_messages)
+
+    @classmethod
+    def from_database_row(cls, row):
+        return {
+            START_DATE: utils.timestamp_to_formatted_date(row[0]),
+            END_DATE: utils.timestamp_to_formatted_date(row[1]),
+            IOS_PN_NUMBER: row[2],
+            ANDROID_PN_NUMBER: row[3],
+            TOTAL_MESSAGE_NUMBER: row[4],
+            CLOSED_GROUP_MESSAGE_NUMBER: row[5],
+            UNTRACKED_MESSAGE_NUMBER: row[6],
+            DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER: row[7]
+        }
 
     # Incremental #
     def increment_total_message(self, number):

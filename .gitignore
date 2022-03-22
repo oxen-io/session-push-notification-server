@@ -116,7 +116,8 @@ venv.bak/
 # Logs
 apns.log*
 
-# Database fiel
+# Database file
 *_db*
+*.db*
 
 generate_cert.txt
