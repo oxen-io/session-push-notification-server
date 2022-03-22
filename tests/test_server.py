@@ -10,8 +10,7 @@ tests_cases = ['lsrpc',
                'subscribe_closed_group',
                'unsubscribe_closed_group']
 
-database_helper.migrate_database_if_needed()
-database_helper.load_cache()
+database_helper.populate_cache()
 
 
 class ServerTests(unittest.TestCase):

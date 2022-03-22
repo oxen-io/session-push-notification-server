@@ -14,7 +14,7 @@ from pushNotificationHandler import PushNotificationHelperV2
 from const import *
 from lokiLogger import LokiLogger
 from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler
-from databaseHelper import DatabaseHelper
+from databaseHelperV2 import DatabaseHelperV2
 from observer import Observer
 
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
@@ -34,7 +34,7 @@ auth = HTTPBasicAuth()
 password_hash = generate_password_hash("^nfe+Lv+2d-2W!B8A+E-rdy^UJmq5#8D")  # your password
 logger = LokiLogger().logger
 observer = Observer(logger)
-database_helper = DatabaseHelper()
+database_helper = DatabaseHelperV2()
 loop = IOLoop.instance()
 signal.signal(signal.SIGTERM, handle_exit)
 
@@ -209,7 +209,7 @@ def get_statistics_data():
         if closed_group_message_include is not None and int(closed_group_message_include) == 0:
             keys_to_remove.append(CLOSED_GROUP_MESSAGE_NUMBER)
 
-        data = database_helper.get_data(start_date, end_date)
+        data = database_helper.get_stats_data(start_date, end_date)
         for item in data:
             for key in keys_to_remove:
                 item.pop(key, None)
@@ -218,8 +218,7 @@ def get_statistics_data():
 
 
 if __name__ == '__main__':
-    database_helper.migrate_database_if_needed()
-    database_helper.load_cache()
+    database_helper.populate_cache()
     observer.run()
     PN_helper_v2.run()
     port = 3000 if debug_mode else 5000

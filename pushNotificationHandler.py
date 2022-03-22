@@ -8,7 +8,8 @@ from utils import *
 import firebase_admin
 from firebase_admin import credentials, messaging
 from firebase_admin.exceptions import *
-from databaseHelper import *
+from databaseModelV2 import *
+from databaseHelperV2 import *
 from pushNotificationStats import *
 
 
@@ -35,8 +36,17 @@ class PushNotificationHelperV2:
             self.logger.info(f"Store data at {now}:\n" + self.stats_data.description())
             current_data = self.stats_data.copy()
             self.stats_data.reset(now)
-            self.database_helper.store_data(current_data, now)
+            self.database_helper.store_stats_data_async(current_data)
             self.observer.push_statistic_data(current_data, now)
+
+    # Database backup #
+    def back_up_data_if_needed(self):
+        now = datetime.now()
+        if self.database_helper.should_back_up_database(now):
+            info = f"Back up database at {now}.\n"
+            self.logger.info(info)
+            self.database_helper.back_up_database_async()
+            self.observer.push_info(info)
 
     # Registration #
     def remove_device_token(self, device_token):
@@ -44,9 +54,9 @@ class PushNotificationHelperV2:
             del self.push_fails[device_token]
         if device_token in self.database_helper.token_device_mapping.keys():
             device = self.database_helper.token_device_mapping[device_token]
-            device.tokens.remove(device_token)
+            device.remove_token(device_token)
             del self.database_helper.token_device_mapping[device_token]
-            device.save(self.database_helper)
+            device.save_to_cache(self.database_helper)
             return device.session_id
         return None
 
@@ -61,8 +71,8 @@ class PushNotificationHelperV2:
             device.session_id = session_id
 
         # When an existed session id adds a new device
-        device.tokens.add(device_token)
-        device.save(self.database_helper)
+        device.add_token(device_token)
+        device.save_to_cache(self.database_helper)
         self.push_fails[device_token] = 0
 
     def unregister(self, device_token):
@@ -77,32 +87,37 @@ class PushNotificationHelperV2:
         if closed_group is None:
             closed_group = ClosedGroup()
             closed_group.closed_group_id = closed_group_id
-        closed_group.members.add(session_id)
-        closed_group.save(self.database_helper)
+        closed_group.add_member(session_id)
+        closed_group.save_to_cache(self.database_helper)
 
     def unsubscribe_closed_group(self, closed_group_id, session_id):
         closed_group = self.database_helper.get_closed_group(closed_group_id)
         if closed_group:
             self.logger.info(f"{session_id} unsubscribe {closed_group_id}.")
-            closed_group.members.remove(session_id)
-            closed_group.save(self.database_helper)
+            closed_group.remove_member(session_id)
+            closed_group.save_to_cache(self.database_helper)
             return closed_group_id
         return None
 
     # Sync mappings to local file #
     async def sync_to_db(self):
         while not self.stop_running:
-            for i in range(3 * 60):
-                await asyncio.sleep(1)
-                if self.stop_running:
-                    return
-            self.logger.info(f"Start to sync to DB at {datetime.now()}.")
             try:
+                for i in range(3 * 60):
+                    await asyncio.sleep(1)
+                    # Check should store stats data & should back up database every second
+                    self.store_data_if_needed()
+                    self.back_up_data_if_needed()
+                    if self.stop_running:
+                        return
+                self.logger.info(f"Start to sync to DB at {datetime.now()}.")
                 self.observer.check_push_notification(self.stats_data)
-                self.store_data_if_needed()
-                self.database_helper.flush()
+                # Flush cache to database every 3 minutes
+                self.database_helper.flush_async()
             except Exception as e:
-                self.logger.error(f"Flush exception: {e}")
+                error_message = f"Flush exception: {e}"
+                self.logger.error(error_message)
+                self.observer.push_error(error_message)
             self.logger.info(f"End of flush at {datetime.now()}.")
 
     # Send PNs #
