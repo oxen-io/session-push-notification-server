@@ -8,14 +8,14 @@ from utils import TaskQueue
 
 
 class DatabaseHelperV2:
-    def __init__(self):
-        self.last_backup = None
+    def __init__(self, logger):
+        self.logger = logger
+        self.last_backup = datetime.now()
         self.task_queue = TaskQueue()
         self.device_cache = {}  # {session_id: Device}
         self.token_device_mapping = {}  # {token: Device}
         self.closed_group_cache = {}  # {closed_group_id: ClosedGroup}
         self.create_tables_if_needed()
-        self.back_up_database_async()
 
     # Database backup
     def should_back_up_database(self, now):
@@ -26,13 +26,19 @@ class DatabaseHelperV2:
         self.task_queue.add_task(self.back_up_database)
 
     def back_up_database(self):
-        self.last_backup = datetime.now()
+        self.logger.info(f"Start to backup database at {datetime.now()}.")
         db_connection = sqlite3.connect(DATABASE_V2)
         backup_db_connection = sqlite3.connect(DATABASE_V2_BACKUP)
-        with backup_db_connection:
-            db_connection.backup(backup_db_connection)
-        backup_db_connection.close()
-        db_connection.close()
+        try:
+            with backup_db_connection:
+                db_connection.backup(backup_db_connection)
+        except Exception as e:
+            error_message = f"Database backup exception: {e}"
+            self.logger.error(error_message)
+        finally:
+            backup_db_connection.close()
+            db_connection.close()
+            self.logger.info(f"Finish to backup database at {datetime.now()}.")
 
     def create_tables_if_needed(self):
         db_connection = sqlite3.connect(DATABASE_V2)
@@ -78,6 +84,7 @@ class DatabaseHelperV2:
         self.task_queue.add_task(self.flush)
 
     def flush(self):
+        self.logger.info(f"Start to sync to DB at {datetime.now()}.")
         db_connection = sqlite3.connect(DATABASE_V2)
         cursor = db_connection.cursor()
 
@@ -91,15 +98,21 @@ class DatabaseHelperV2:
             statement = SQLStatements.NEW.format(table, ','.join('?' * 2))
             cursor.executemany(statement, rows_to_update)
 
-        # Update device token into database
-        batch_update(PUBKEY_TOKEN_TABLE, PUBKEY, self.device_cache)
+        try:
+            # Update device token into database
+            batch_update(PUBKEY_TOKEN_TABLE, PUBKEY, self.device_cache)
 
-        # Update closed group into database
-        batch_update(CLOSED_GROUP_TABLE, CLOSED_GROUP, self.closed_group_cache)
+            # Update closed group into database
+            batch_update(CLOSED_GROUP_TABLE, CLOSED_GROUP, self.closed_group_cache)
 
-        db_connection.commit()
-        cursor.close()
-        db_connection.close()
+            db_connection.commit()
+        except Exception as e:
+            error_message = f"Flush exception: {e}"
+            self.logger.error(error_message)
+        finally:
+            cursor.close()
+            db_connection.close()
+            self.logger.info(f"End of flush at {datetime.now()}.")
 
     def get_device(self, session_id):
         return self.device_cache.get(session_id, None)

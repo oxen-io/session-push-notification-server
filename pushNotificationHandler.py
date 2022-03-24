@@ -46,6 +46,7 @@ class PushNotificationHelperV2:
             info = f"Back up database at {now}.\n"
             self.logger.info(info)
             self.database_helper.back_up_database_async()
+            self.database_helper.last_backup = now
             self.observer.push_info(info)
 
     # Registration #
@@ -110,7 +111,6 @@ class PushNotificationHelperV2:
                     self.back_up_data_if_needed()
                     if self.stop_running:
                         return
-                self.logger.info(f"Start to sync to DB at {datetime.now()}.")
                 self.observer.check_push_notification(self.stats_data)
                 # Flush cache to database every 3 minutes
                 self.database_helper.flush_async()
@@ -118,7 +118,6 @@ class PushNotificationHelperV2:
                 error_message = f"Flush exception: {e}"
                 self.logger.error(error_message)
                 self.observer.push_error(error_message)
-            self.logger.info(f"End of flush at {datetime.now()}.")
 
     # Send PNs #
     def add_message_to_queue(self, message):

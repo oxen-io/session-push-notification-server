@@ -34,7 +34,7 @@ auth = HTTPBasicAuth()
 password_hash = generate_password_hash("^nfe+Lv+2d-2W!B8A+E-rdy^UJmq5#8D")  # your password
 logger = LokiLogger().logger
 observer = Observer(logger)
-database_helper = DatabaseHelperV2()
+database_helper = DatabaseHelperV2(logger)
 loop = IOLoop.instance()
 signal.signal(signal.SIGTERM, handle_exit)
 
