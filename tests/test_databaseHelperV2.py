@@ -42,6 +42,9 @@ class DatabaseHelperV2Tests(unittest.TestCase):
         self.assertFalse(test_closed_group_in_cache is None)
 
         self.databaseHelper.flush()
+        self.assertFalse(test_device_in_cache.needs_to_be_updated)
+        self.assertFalse(test_closed_group_in_cache.needs_to_be_updated)
+
         self.databaseHelper.device_cache.clear()
         self.databaseHelper.closed_group_cache.clear()
         self.databaseHelper.populate_cache()
