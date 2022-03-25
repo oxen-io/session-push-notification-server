@@ -94,7 +94,6 @@ class DatabaseHelperV2:
             for item in cache.values():
                 if item.needs_to_be_updated:
                     rows_to_update += item.to_database_rows()
-                item.needs_to_be_updated = False
             query = SQLStatements.DELETE.format(table) + f'WHERE {key} = ?'
             cursor.executemany(query, [(row[0],) for row in rows_to_update])
             statement = SQLStatements.NEW.format(table, ','.join('?' * 2))

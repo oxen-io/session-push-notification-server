@@ -8,6 +8,7 @@ class Device:
         rows = []
         for token in self.tokens:
             rows.append((self.session_id, token))
+        self.needs_to_be_updated = False
         return rows
 
     def add_token(self, token):
@@ -36,6 +37,7 @@ class ClosedGroup:
         rows = []
         for member in self.members:
             rows.append((self.closed_group_id, member))
+        self.needs_to_be_updated = False
         return rows
 
     def add_member(self, member):
