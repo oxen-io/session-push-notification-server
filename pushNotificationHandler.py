@@ -1,14 +1,10 @@
 from queue import *
 import asyncio
-from threading import Thread
-from PyAPNs.apns2.client import APNsClient, NotificationPriority, Notification, NotificationType
-from PyAPNs.apns2.payload import Payload, PayloadAlert
-from PyAPNs.apns2.errors import *
+from aioapns import APNs, NotificationRequest, PushType, PRIORITY_HIGH
 from utils import *
 import firebase_admin
 from firebase_admin import credentials, messaging
 from firebase_admin.exceptions import *
-from databaseModelV2 import *
 from databaseHelperV2 import *
 from pushNotificationStats import *
 
@@ -17,7 +13,7 @@ from pushNotificationStats import *
 class PushNotificationHelperV2:
     # Init #
     def __init__(self, logger, database_helper, observer):
-        self.apns = APNsClient(CERT_FILE, use_sandbox=debug_mode, use_alternative_port=False)
+        self.apns = APNs(client_cert=CERT_FILE, use_sandbox=debug_mode, topic=BUNDLE_ID)
         self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
         self.message_queue = Queue()
         self.push_fails = {}
@@ -150,12 +146,21 @@ class PushNotificationHelperV2:
                 if device_for_push:
                     for device_token in device_for_push.tokens:
                         if is_ios_device_token(device_token):
-                            alert = PayloadAlert(title='Session', body='You\'ve got a new message')
-                            payload = Payload(alert=alert, badge=1, sound="default",
-                                              mutable_content=True, category="SECRET",
-                                              custom={'ENCRYPTED_DATA': message['data'],
-                                                      'remote': 1})
-                            notifications_ios.append(Notification(token=device_token, payload=payload))
+                            alert = {'title': 'Session',
+                                     'body': 'You\'ve got a new message'}
+                            payload = {'alert': alert,
+                                       'badge': 1,
+                                       'sound': 'default',
+                                       'mutable-content': 1,
+                                       'category': 'SECRET'}
+                            custom = {'ENCRYPTED_DATA': message['data'],
+                                      'remote': 1}
+                            payload.update(custom)
+                            request = NotificationRequest(device_token=device_token,
+                                                          message={'aps': payload},
+                                                          priority=PRIORITY_HIGH,
+                                                          push_type=PushType.ALERT)
+                            notifications_ios.append(request)
                         else:
                             notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
                                                              token=device_token,
@@ -180,7 +185,7 @@ class PushNotificationHelperV2:
                 if debug_mode:
                     self.logger.info(f'Ignore message to {recipient}.')
         try:
-            self.execute_push_ios(notifications_ios, NotificationPriority.Immediate)
+            self.execute_push_ios(notifications_ios)
             self.execute_push_android(notifications_android)
         except Exception as e:
             self.logger.info('Something wrong happened when try to push notifications.')
@@ -206,30 +211,21 @@ class PushNotificationHelperV2:
                 if not response.success:
                     error = response.exception
                     self.logger.exception(error)
-                    self.handle_fail_result(token, ("HttpError", ""))
+                    self.handle_fail_result(token, ('HttpError', ''))
                 else:
                     self.push_fails[token] = 0
 
-    def execute_push_ios(self, notifications, priority):
+    def execute_push_ios(self, notifications):
         if len(notifications) == 0:
             return
         self.logger.info(f"Push {len(notifications)} notifications for iOS.")
         self.stats_data.increment_ios_pn(len(notifications))
-        results = {}
-        try:
-            results = self.apns.send_notification_batch(notifications=notifications, topic=BUNDLE_ID,
-                                                        priority=priority, push_type=NotificationType.Alert)
-        except ConnectionFailed:
-            self.logger.error('Connection failed')
-            self.execute_push_ios(notifications, priority)
-        except Exception as e:
-            self.logger.exception(e)
-            self.execute_push_ios(notifications, priority)
-        for token, result in results.items():
-            if result != 'Success':
-                self.handle_fail_result(token, result)
+        for notification in notifications:
+            response = asyncio.run(self.apns.send_notification(notification))
+            if not response.is_successful:
+                self.handle_fail_result(notification.device_token, (response.description, ''))
             else:
-                self.push_fails[token] = 0
+                self.push_fails[notification.device_token] = 0
 
     # Tasks #
     async def create_push_notification_task(self):

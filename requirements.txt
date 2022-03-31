@@ -16,3 +16,5 @@ pyjwt~=1.7.1
 setuptools~=41.4.0
 telepot~=12.7
 werkzeug~=0.16.0
+
+aioapns
