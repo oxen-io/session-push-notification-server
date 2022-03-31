@@ -1,8 +1,8 @@
 import unittest
-from databaseModelV2 import *
+from model.databaseModelV2 import *
 from test_const import *
 from server import database_helper
-from pushNotificationStats import *
+from model.pushNotificationStats import *
 
 
 tests_cases = ['populate_cache',

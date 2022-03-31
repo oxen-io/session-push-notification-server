@@ -2,20 +2,22 @@ import sqlite3
 import utils
 from datetime import datetime
 from const import *
-from databaseModelV2 import *
-from pushNotificationStats import PushNotificationStats
+from model.databaseModelV2 import *
+from model.pushNotificationStats import PushNotificationStats
 from utils import TaskQueue
+from toolManager import Tools
 
 
 class DatabaseHelperV2:
-    def __init__(self, logger):
-        self.logger = logger
+    def __init__(self):
+        self.logger = Tools().logger
         self.last_backup = datetime.now()
         self.task_queue = TaskQueue()
         self.device_cache = {}  # {session_id: Device}
         self.token_device_mapping = {}  # {token: Device}
         self.closed_group_cache = {}  # {closed_group_id: ClosedGroup}
         self.create_tables_if_needed()
+        self.populate_cache()
 
     # Database backup
     def should_back_up_database(self, now):

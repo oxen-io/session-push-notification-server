@@ -10,21 +10,17 @@ from tornado.wsgi import WSGIContainer
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 
-from pushNotificationHandler import PushNotificationHelperV2
+from taskRunner import TaskRunner
+from toolManager import Tools
 from const import *
-from lokiLogger import LokiLogger
 from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler
-from databaseHelperV2 import DatabaseHelperV2
-from observer import Observer
 
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 urllib3.disable_warnings()
 
 
 def handle_exit(sig, frame):
-    PN_helper_v2.stop()
-    observer.stop()
-    database_helper.flush()
+    runner.stop_tasks()
     loop.stop()
     raise SystemExit
 
@@ -32,15 +28,11 @@ def handle_exit(sig, frame):
 app = Flask(__name__)
 auth = HTTPBasicAuth()
 password_hash = generate_password_hash("^nfe+Lv+2d-2W!B8A+E-rdy^UJmq5#8D")  # your password
-logger = LokiLogger().logger
-observer = Observer(logger)
-database_helper = DatabaseHelperV2(logger)
 loop = IOLoop.instance()
 signal.signal(signal.SIGTERM, handle_exit)
 
-
-# PN approach V2 #
-PN_helper_v2 = PushNotificationHelperV2(logger, database_helper, observer)
+tools = Tools()
+runner = TaskRunner()
 
 
 def register_v2(args):
@@ -52,10 +44,10 @@ def register_v2(args):
         session_id = args[PUBKEY]
 
     if device_token and session_id:
-        PN_helper_v2.register(device_token, session_id)
+        tools.notification_helper.register(device_token, session_id)
         return 1, SUCCESS
     else:
-        logger.info("Onion routing register error")
+        tools.logger.info("Onion routing register error")
         raise Exception(PARA_MISSING)
 
 
@@ -65,13 +57,13 @@ def unregister(args):
         device_token = args[TOKEN]
 
     if device_token:
-        session_id = PN_helper_v2.unregister(device_token)
+        session_id = tools.notification_helper.unregister(device_token)
         if session_id:
             return 1, SUCCESS
         else:
             return 0, "Session id was not registered before."
     else:
-        logger.info("Onion routing unregister error")
+        tools.logger.info("Onion routing unregister error")
         raise Exception(PARA_MISSING)
 
 
@@ -84,10 +76,10 @@ def subscribe_closed_group(args):
         closed_group_id = args[CLOSED_GROUP]
 
     if closed_group_id and session_id:
-        PN_helper_v2.subscribe_closed_group(closed_group_id, session_id)
+        tools.notification_helper.subscribe_closed_group(closed_group_id, session_id)
         return 1, SUCCESS
     else:
-        logger.info("Onion routing subscribe closed group error")
+        tools.logger.info("Onion routing subscribe closed group error")
         raise Exception(PARA_MISSING)
 
 
@@ -100,13 +92,13 @@ def unsubscribe_closed_group(args):
         closed_group_id = args[CLOSED_GROUP]
 
     if closed_group_id and session_id:
-        closed_group = PN_helper_v2.unsubscribe_closed_group(closed_group_id, session_id)
+        closed_group = tools.notification_helper.unsubscribe_closed_group(closed_group_id, session_id)
         if closed_group:
             return 1, SUCCESS
         else:
             return 0, "Cannot find the closed group id on PN server."
     else:
-        logger.info("Onion routing unsubscribe closed group error")
+        tools.logger.info("Onion routing unsubscribe closed group error")
         raise Exception(PARA_MISSING)
 
 
@@ -119,8 +111,8 @@ def notify(args):
         data = args[DATA]
 
     if session_id and data:
-        logger.info('Notify to ' + session_id)
-        PN_helper_v2.add_message_to_queue(args)
+        tools.logger.info('Notify to ' + session_id)
+        runner.add_message_to_queue(args)
         return 1, SUCCESS
     else:
         raise Exception(PARA_MISSING)
@@ -148,8 +140,8 @@ def onion_request_body_handler(body):
     if ephemeral_pubkey:
         symmetric_key = make_symmetric_key(ephemeral_pubkey)
     else:
-        logger.error("Client public key is None.")
-        logger.error(f"This request is from {request.environ.get('HTTP_X_REAL_IP')}.")
+        tools.logger.error("Client public key is None.")
+        tools.logger.error(f"This request is from {request.environ.get('HTTP_X_REAL_IP')}.")
         abort(400)
 
     if ciphertext and symmetric_key:
@@ -157,19 +149,19 @@ def onion_request_body_handler(body):
             parameters = json.loads(decrypt(ciphertext, symmetric_key).decode('utf-8'))
             args = json.loads(parameters['body'])
             if debug_mode:
-                logger.info(parameters)
+                tools.logger.info(parameters)
             func = Routing[parameters['endpoint']]
             code, message = func(args)
             response = json.dumps({STATUS: 200,
                                    BODY: {CODE: code,
                                           MSG: message}})
         except Exception as e:
-            logger.error(e)
+            tools.logger.error(e)
             response = json.dumps({STATUS: 400,
                                    BODY: {CODE: 0,
                                           MSG: str(e)}})
     else:
-        logger.error("Ciphertext or symmetric key is None.")
+        tools.logger.error("Ciphertext or symmetric key is None.")
         abort(400)
     return jsonify({RESULT: encrypt(response, symmetric_key)})
 
@@ -180,7 +172,7 @@ def onion_request_v2():
     if request.data:
         body = onion_request_data_handler(request.data)
     else:
-        logger.error(request.form)
+        tools.logger.error(request.form)
     return onion_request_body_handler(body)
 
 
@@ -209,7 +201,7 @@ def get_statistics_data():
         if closed_group_message_include is not None and int(closed_group_message_include) == 0:
             keys_to_remove.append(CLOSED_GROUP_MESSAGE_NUMBER)
 
-        data = database_helper.get_stats_data(start_date, end_date)
+        data = tools.database_helper.get_stats_data(start_date, end_date)
         for item in data:
             for key in keys_to_remove:
                 item.pop(key, None)
@@ -218,9 +210,7 @@ def get_statistics_data():
 
 
 if __name__ == '__main__':
-    database_helper.populate_cache()
-    observer.run()
-    PN_helper_v2.run()
+    runner.run_tasks()
     port = 3000 if debug_mode else 5000
     http_server = HTTPServer(WSGIContainer(app), no_keep_alive=True)
     http_server.listen(port)
