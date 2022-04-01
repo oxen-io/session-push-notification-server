@@ -28,7 +28,7 @@ class PushNotificationStats:
 
     def should_create_new_entry(self, now):
         time_diff = now - self.start_date
-        return time_diff.days() > 0
+        return time_diff.days > 0
 
     def reset(self, now):
         self.start_date = now
