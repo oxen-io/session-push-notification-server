@@ -124,12 +124,26 @@ class DatabaseHelperV2(metaclass=Singleton):
         return self.closed_group_cache.get(closed_group_id, None)
 
     # Statistics
+    def create_new_entry_for_stats_data_async(self, stats_data):
+        self.task_queue.add_task(self.create_new_entry_for_stats_data, stats_data)
+
+    def create_new_entry_for_stats_data(self, stats_data):
+        db_connection = sqlite3.connect(DATABASE_V2)
+        cursor = db_connection.cursor()
+        statement = SQLStatements.NEW.format(STATISTICS_TABLE, ','.join('?' * 8))
+        cursor.execute(statement, stats_data.to_database_row())
+        db_connection.commit()
+        cursor.close()
+        db_connection.close()
+
     def store_stats_data_async(self, stats_data):
         self.task_queue.add_task(self.store_stats_data, stats_data)
 
     def store_stats_data(self, stats_data):
         db_connection = sqlite3.connect(DATABASE_V2)
         cursor = db_connection.cursor()
+        statement = SQLStatements.DELETE.format(STATISTICS_TABLE) + f'WHERE {START_DATE} = ?'
+        cursor.execute(statement, stats_data.start_date.timestamp())
         statement = SQLStatements.NEW.format(STATISTICS_TABLE, ','.join('?' * 8))
         cursor.execute(statement, stats_data.to_database_row())
         db_connection.commit()

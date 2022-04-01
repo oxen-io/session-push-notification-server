@@ -1,6 +1,7 @@
 from tasks.baseTask import *
 from tools.observer import Observer
 from tools.databaseHelperV2 import DatabaseHelperV2
+from tools.pushNotificationHandler import PushNotificationHelperV2
 from datetime import datetime
 
 
@@ -10,6 +11,7 @@ class SyncDatabaseTask(BaseTask):
 
         self.observer = Observer()
         self.database_helper = DatabaseHelperV2()
+        self.notification_helper = PushNotificationHelperV2()
 
     async def task(self):
         while self.is_running:
@@ -18,10 +20,11 @@ class SyncDatabaseTask(BaseTask):
                     await asyncio.sleep(1)
                     # Check should back up database every second
                     self.back_up_data_if_needed()
+                    self.create_new_stats_data_entry_if_needed()
                 # Flush cache to database every 3 minutes
                 self.database_helper.flush_async()
                 # Update stats data every 3 minutes
-                self.store_data_if_needed()
+                self.persist_stats_data()
             except Exception as e:
                 error_message = f"Flush exception: {e}"
                 self.logger.error(error_message)
@@ -37,13 +40,17 @@ class SyncDatabaseTask(BaseTask):
             self.database_helper.last_backup = now
             self.observer.push_info(info)
 
-    # TODO: Create a new row after 00:00 and update data every 3 minutes
+    # Create a new row after 00:00 and update data every 3 minutes
     # Statistics #
-    def store_data_if_needed(self):
+    def create_new_stats_data_entry_if_needed(self):
         now = datetime.now()
-        if self.notification_helper.stats_data.should_store_data(now):
-            self.logger.info(f"Store data at {now}:\n" + self.notification_helper.stats_data.description())
-            current_data = self.notification_helper.stats_data.copy()
+        if self.notification_helper.stats_data.should_create_new_entry(now):
+            self.persist_stats_data()
+            self.observer.push_statistic_data(self.notification_helper.stats_data, now)
             self.notification_helper.stats_data.reset(now)
-            self.database_helper.store_stats_data_async(current_data)
-            self.observer.push_statistic_data(current_data, now)
+            self.database_helper.create_new_entry_for_stats_data_async(self.notification_helper.stats_data.copy())
+
+    def persist_stats_data(self):
+        current_data = self.notification_helper.stats_data.copy()
+        self.database_helper.store_stats_data_async(current_data)
+

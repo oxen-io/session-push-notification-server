@@ -1,6 +1,7 @@
 from tasks.baseTask import *
 from const import debug_mode
 from tools.observer import Observer
+from tools.pushNotificationHandler import PushNotificationHelperV2
 from datetime import datetime
 
 
@@ -9,6 +10,7 @@ class ObserveTask(BaseTask):
         super().__init__()
 
         self.observer = Observer()
+        self.stats_data = PushNotificationHelperV2().stats_data
 
         self.last_ios_pn_number = 0
         self.last_android_pn_number = 0
@@ -24,14 +26,14 @@ class ObserveTask(BaseTask):
             await asyncio.sleep(10)
 
     # TODO: New ways to observe if a database flush is done in every 5 minutes
-    def check_push_notification(self, stats_data):
-        if stats_data.notification_counter_ios == self.last_ios_pn_number and not debug_mode:
+    def check_push_notification(self):
+        if self.stats_data.notification_counter_ios == self.last_ios_pn_number and not debug_mode:
             self.observer.push_warning('No new iOS PN during the last period. iOS PN might be crashed.')
 
-        if stats_data.notification_counter_android == self.last_android_pn_number and not debug_mode:
+        if self.stats_data.notification_counter_android == self.last_android_pn_number and not debug_mode:
             self.observer.push_warning('No new Android PN during the last period. Android PN might be crashed.')
 
-        self.last_ios_pn_number = stats_data.notification_counter_ios
-        self.last_android_pn_number = stats_data.notification_counter_android
+        self.last_ios_pn_number = self.stats_data.notification_counter_ios
+        self.last_android_pn_number = self.stats_data.notification_counter_android
         self.last_time_checked = datetime.now()
         self.logger.info('Check alive.')
