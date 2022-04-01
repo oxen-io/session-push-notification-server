@@ -146,8 +146,8 @@ class DatabaseHelperV2(metaclass=Singleton):
     def store_stats_data(self, stats_data):
         db_connection = sqlite3.connect(DATABASE_V2)
         cursor = db_connection.cursor()
-        statement = SQLStatements.DELETE.format(STATISTICS_TABLE) + f'WHERE {START_DATE} = ?'
-        cursor.execute(statement, stats_data.start_date.timestamp())
+        statement = SQLStatements.DELETE.format(STATISTICS_TABLE) + f'WHERE {START_DATE} = {stats_data.start_date.timestamp()}'
+        cursor.execute(statement)
         statement = SQLStatements.NEW.format(STATISTICS_TABLE, ','.join('?' * 8))
         cursor.execute(statement, stats_data.to_database_row())
         db_connection.commit()

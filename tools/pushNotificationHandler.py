@@ -88,7 +88,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
             self.logger.exception(e)
             raise e
 
-    def send_push_notification(self, messages_wait_to_push):
+    def send_push_notification(self):
 
         def generate_notifications(session_ids):
             for session_id in session_ids:
@@ -116,6 +116,13 @@ class PushNotificationHelperV2(metaclass=Singleton):
                                                              token=device_token,
                                                              android=messaging.AndroidConfig(priority='high'))
                             notifications_android.append(notification)
+
+        if self.message_queue.empty():
+            return
+        # Get at most 1000 messages every 0.5 seconds
+        messages_wait_to_push = []
+        while not self.message_queue.empty() or len(messages_wait_to_push) > 1000:
+            messages_wait_to_push.append(self.message_queue.get())
 
         self.stats_data.increment_total_message(len(messages_wait_to_push))
         notifications_ios = []
