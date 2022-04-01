@@ -12,6 +12,7 @@ class DatabaseHelperV2(metaclass=Singleton):
     def __init__(self):
         self.logger = LokiLogger().logger
         self.last_backup = datetime.now()
+        self.last_flush = None
         self.task_queue = TaskQueue()
         self.device_cache = {}  # {session_id: Device}
         self.token_device_mapping = {}  # {token: Device}
@@ -87,7 +88,8 @@ class DatabaseHelperV2(metaclass=Singleton):
             self.task_queue.add_task(self.flush)
 
     def flush(self):
-        self.logger.info(f"Start to sync to DB at {datetime.now()}.")
+        now = datetime.now()
+        self.logger.info(f"Start to sync to DB at {now}.")
         db_connection = sqlite3.connect(DATABASE_V2)
         cursor = db_connection.cursor()
 
@@ -109,6 +111,8 @@ class DatabaseHelperV2(metaclass=Singleton):
             batch_update(CLOSED_GROUP_TABLE, CLOSED_GROUP, self.closed_group_cache)
 
             db_connection.commit()
+
+            self.last_flush = now
         except Exception as e:
             error_message = f"Flush exception: {e}"
             self.logger.error(error_message)
