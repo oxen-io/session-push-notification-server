@@ -4,13 +4,13 @@ from datetime import datetime
 from const import *
 from model.databaseModelV2 import *
 from model.pushNotificationStats import PushNotificationStats
-from utils import TaskQueue
-from toolManager import Tools
+from utils import TaskQueue, Singleton
+from tools.lokiLogger import LokiLogger
 
 
-class DatabaseHelperV2:
+class DatabaseHelperV2(metaclass=Singleton):
     def __init__(self):
-        self.logger = Tools().logger
+        self.logger = LokiLogger().logger
         self.last_backup = datetime.now()
         self.task_queue = TaskQueue()
         self.device_cache = {}  # {session_id: Device}

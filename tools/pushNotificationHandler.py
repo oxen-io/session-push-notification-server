@@ -4,13 +4,15 @@ from utils import *
 import firebase_admin
 from firebase_admin import credentials, messaging
 from firebase_admin.exceptions import *
-from tools.databaseHelperV2 import *
-from model.pushNotificationStats import *
-from toolManager import Tools
+from model.pushNotificationStats import PushNotificationStats
+from model.databaseModelV2 import *
+from tools.databaseHelperV2 import DatabaseHelperV2
+from tools.lokiLogger import LokiLogger
+from queue import *
 
 
 # PN approach V2 #
-class PushNotificationHelperV2:
+class PushNotificationHelperV2(metaclass=Singleton):
     # Init #
     def __init__(self):
         self.apns = APNs(client_cert=CERT_FILE, use_sandbox=debug_mode, topic=BUNDLE_ID)
@@ -18,8 +20,10 @@ class PushNotificationHelperV2:
         self.push_fails = {}
         self.stats_data = PushNotificationStats()
 
-        self.logger = Tools().logger
-        self.database_helper = Tools().database_helper
+        self.logger = LokiLogger().logger
+        self.database_helper = DatabaseHelperV2()
+
+        self.message_queue = Queue()
 
     # Registration #
     def remove_device_token(self, device_token):
@@ -71,6 +75,18 @@ class PushNotificationHelperV2:
             closed_group.save_to_cache(self.database_helper)
             return closed_group_id
         return None
+
+    # Notification #
+    def add_message_to_queue(self, message):
+        try:
+            if debug_mode:
+                self.logger.info(message)
+            self.message_queue.put(message, timeout=5)
+        except Full:
+            self.logger.exception("Message queue is full.")
+        except Exception as e:
+            self.logger.exception(e)
+            raise e
 
     def send_push_notification(self, messages_wait_to_push):
 

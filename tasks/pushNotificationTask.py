@@ -1,12 +1,13 @@
 from tasks.baseTask import *
+from tools.pushNotificationHandler import PushNotificationHelperV2
 
 
 class PushNotificationTask(BaseTask):
     def __init__(self):
         super().__init__()
 
-        self.message_queue = Tools().message_queue
-        self.notification_helper = Tools().notification_helper
+        self.notification_helper = PushNotificationHelperV2()
+        self.message_queue = self.notification_helper.message_queue
 
     async def task(self):
         while not self.is_running:

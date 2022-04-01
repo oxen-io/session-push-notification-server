@@ -1,12 +1,14 @@
 from tasks.baseTask import *
 from const import debug_mode
+from tools.observer import Observer
+from datetime import datetime
 
 
 class ObserveTask(BaseTask):
     def __init__(self):
         super().__init__()
 
-        self.observer = Tools().observer
+        self.observer = Observer()
 
         self.last_ios_pn_number = 0
         self.last_android_pn_number = 0

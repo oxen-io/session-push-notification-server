@@ -1,12 +1,15 @@
 from tasks.baseTask import *
+from tools.observer import Observer
+from tools.databaseHelperV2 import DatabaseHelperV2
+from datetime import datetime
 
 
 class SyncDatabaseTask(BaseTask):
     def __init__(self):
         super().__init__()
 
-        self.observer = Tools().observer
-        self.database_helper = Tools().database_helper
+        self.observer = Observer()
+        self.database_helper = DatabaseHelperV2()
 
     async def task(self):
         while self.is_running:

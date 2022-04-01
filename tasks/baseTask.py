@@ -1,12 +1,11 @@
 from threading import Thread
 import asyncio
-from datetime import datetime
-from toolManager import Tools
+from tools.lokiLogger import LokiLogger
 
 
 class BaseTask:
     def __init__(self):
-        self.logger = Tools().logger
+        self.logger = LokiLogger().logger
 
         self.is_running = False
         self.thread = Thread(target=self.run_task)

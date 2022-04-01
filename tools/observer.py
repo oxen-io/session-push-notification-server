@@ -1,12 +1,13 @@
 import telepot
 from telepot.loop import MessageLoop
 from const import *
-from toolManager import Tools
+from utils import Singleton
+from tools.lokiLogger import LokiLogger
 
 
-class Observer:
+class Observer(metaclass=Singleton):
     def __init__(self):
-        self.logger = Tools().logger
+        self.logger = LokiLogger().logger
         self.bot = telepot.Bot("1685024629:AAHIvVUUdErsbtXW5UvoEw00GQM2TVTUFe8")
         self.subscribers = set()
 

@@ -1,7 +1,7 @@
 import unittest
 from model.databaseModelV2 import *
+from tools.databaseHelperV2 import DatabaseHelperV2
 from test_const import *
-from server import database_helper
 from model.pushNotificationStats import *
 
 
@@ -12,7 +12,7 @@ tests_cases = ['populate_cache',
 
 class DatabaseHelperV2Tests(unittest.TestCase):
     def setUp(self):
-        self.databaseHelper = database_helper
+        self.databaseHelper = DatabaseHelperV2()
 
     def tearDown(self):
         pass

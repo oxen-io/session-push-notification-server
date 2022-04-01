@@ -1,6 +1,7 @@
 import unittest
 from test_const import *
-from server import database_helper, PN_helper_v2
+from tools.databaseHelperV2 import DatabaseHelperV2
+from tools.pushNotificationHandler import PushNotificationHelperV2
 
 tests_cases = ['register',
                'unregister',
@@ -9,13 +10,11 @@ tests_cases = ['register',
                'send_push_notification',
                'handle_push_fail']
 
-database_helper.populate_cache()
-
 
 class PushNotificationHandlerTests(unittest.TestCase):
     def setUp(self):
-        self.database_helper = database_helper
-        self.PN_helper_v2 = PN_helper_v2
+        self.database_helper = DatabaseHelperV2()
+        self.PN_helper_v2 = PushNotificationHelperV2()
 
     def tearDown(self):
         self.database_helper.flush()

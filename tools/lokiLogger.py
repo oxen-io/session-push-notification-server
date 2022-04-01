@@ -1,8 +1,9 @@
 import logging
 from logging.handlers import TimedRotatingFileHandler
+from utils import Singleton
 
 
-class LokiLogger:
+class LokiLogger(metaclass=Singleton):
     def __init__(self):
         self.logger = logging.getLogger()
         self.log_config()
