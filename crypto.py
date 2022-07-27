@@ -9,6 +9,8 @@ from const import *
 if os.path.exists(PRIVKEY_FILE):
     with open(PRIVKEY_FILE, "r") as f:
         key = f.read()
+        if key[-1] == '\n':
+            key = key[:-1]
         if len(key) != 64:
             raise RuntimeError(
                 "Invalid key_x25519: expected 64 bytes, not {} bytes".format(len(key))
