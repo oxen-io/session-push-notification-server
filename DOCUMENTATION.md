@@ -1,6 +1,6 @@
 # Documentation
 
-### Lsprc (`/loki/v2/lsrpc`)
+### Lsrpc V4 (`/oxen/v4/lsrpc`)
 - Endpoint: `/register`
 - Method: **POST**
 - Header: `[Content-Type: application/json]`
@@ -54,6 +54,24 @@
         "send_to": String
     }
 ```
+
+- Response(Bencoded):
+```
+    {
+        "code": Number,
+        "header": {
+            "content-type": "application/json"
+        },
+        "body": {
+            "code": 0 or 1
+            "message": "Success" or Error Message String
+        }
+    }
+```
+
+### Lsprc V2 (`/loki/v2/lsrpc`)
+
+- Same endpoints as Lsrpc V4
 
 - Response:
 ```

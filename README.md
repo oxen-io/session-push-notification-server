@@ -45,6 +45,17 @@ The server will store some statistics data every 12 hours for analysing the traf
 There is also an endpoint `/get_statistics_data` to get the data above.
 
 
+## Script to generate the key pair
+
+```
+ random = get_random_bytes(32)              # The private key 32 bytes
+ priv = _curve25519.make_private(random)
+ print(priv.hex())
+ pub = _curve25519.make_public(priv)
+ print(pub.hex())
+```
+
+
 ## Potential issues
 
 If you get an issue during the `sudo apt update` about the certificate chain being invalid,
