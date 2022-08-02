@@ -2,6 +2,7 @@ import signal
 import urllib3
 import resource
 import json
+import http
 
 from flask import Flask, request, jsonify, abort
 from flask_httpauth import HTTPBasicAuth
@@ -16,7 +17,7 @@ from lokiLogger import LokiLogger
 from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler, onion_request_v4_data_handler
 from databaseHelperV2 import DatabaseHelperV2
 from observer import Observer
-from crypto import  parse_junk
+from crypto import parse_junk
 
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 urllib3.disable_warnings()
@@ -135,8 +136,6 @@ Routing = {'register': register_v2,
 
 
 def onion_request_v4_body_handler(parameters):
-    response = ''
-    body = ""
     try:
         endpoint = parameters['endpoint']
         if endpoint.startswith('/'):
@@ -147,20 +146,17 @@ def onion_request_v4_body_handler(parameters):
         func = Routing[endpoint]
         code, message = func(parameters)
         body = json.dumps({CODE: code, MSG: message})
-        response = json.dumps({STATUS: 200,
-                            HEADERS: {'content-type': 'application/json'} })
+        response = json.dumps({CODE: 200, HEADERS: {'content-type': 'application/json'}})
 
     except Exception as e:
         logger.error(e)
         body = json.dumps({CODE: 0, MSG: str(e)})
-        response = json.dumps({STATUS: 400,
-                            HEADERS: {'content-type': 'application/json'}})
+        response = json.dumps({CODE: 400, HEADERS: {'content-type': 'application/json'}})
 
     v4response = b''.join(
         (b'l', str(len(response)).encode(), b':', response.encode(), str(len(body)).encode(), b':', body.encode(), b'e')
     )
     return v4response
-
 
 
 def onion_request_body_handler(body):
@@ -181,8 +177,6 @@ def onion_request_body_handler(body):
         logger.error("Client public key is None.")
         logger.error(f"This request is from {request.environ.get('HTTP_X_REAL_IP')}.")
         abort(400)
-
-
 
     if ciphertext and symmetric_key:
         try:
@@ -218,11 +212,13 @@ def onion_request_v2():
 
 @app.route('/oxen/v4/lsrpc', methods=[POST])
 def onion_request_v4():
+    junk = None
+
     try:
         junk = parse_junk(request.data)
     except RuntimeError as e:
         app.logger.warning("Failed to decrypt onion request: {}".format(e))
-        abort(http.BAD_REQUEST)
+        abort(http.HTTPStatus.BAD_REQUEST)
     body = {}
 
     if junk:
