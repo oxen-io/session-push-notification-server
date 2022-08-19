@@ -12,6 +12,8 @@ from datetime import datetime
 from threading import Thread
 from queue import Queue
 from typing import Tuple
+from enum import Enum
+
 
 def timestamp_to_formatted_date(timestamp):
     if timestamp is None:
@@ -102,6 +104,7 @@ def bencode_consume_string(body: memoryview) -> Tuple[memoryview, memoryview]:
         raise ValueError("Invalid string bencoding: length exceeds buffer")
     return body[pos : pos + strlen], body[pos + strlen :]
 
+
 def onion_request_v4_data_handler(junk):
     if not (junk.payload.startswith(b'l') and junk.payload.endswith(b'e')):
         raise RuntimeError("Invalid onion request body: expected bencoded list")
@@ -120,10 +123,9 @@ def onion_request_v4_data_handler(junk):
         subreq_body = b''
 
     subreq_body_json = json.loads(str(subreq_body, 'utf-8'))
-
-
     subreq_body_json.update(meta)
     return subreq_body_json
+
 
 class TaskQueue(Queue):
 
@@ -148,3 +150,14 @@ class TaskQueue(Queue):
             item, args, kwargs = self.get()
             item(*args, **kwargs)
             self.task_done()
+
+
+class DeviceType(Enum):
+    iOS = "ios"
+    Android = "android"
+    Huawei = "huawei"
+    Unknown = "unknown"
+
+    @classmethod
+    def __missing__(cls, value):
+        return cls(cls.Unknown)

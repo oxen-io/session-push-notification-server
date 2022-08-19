@@ -50,6 +50,14 @@ class DatabaseHelperV2:
         cursor.close()
         db_connection.close()
 
+    def migrate(self):
+        db_connection = sqlite3.connect(DATABASE_V2)
+        cursor = db_connection.cursor()
+        cursor.execute(SQLStatements.INSERT_DEVICE_TYPE_COLUMN_INTO_DEVICE_TOKEN_MAPPING_TABLE)
+        db_connection.commit()
+        cursor.close()
+        db_connection.close()
+
     def populate_cache(self):
         db_connection = sqlite3.connect(DATABASE_V2)
         cursor = db_connection.cursor()
@@ -60,11 +68,11 @@ class DatabaseHelperV2:
         device_token_rows = cursor.fetchall()
         for row in device_token_rows:
             session_id = row[0]
-            token = row[1]
+            token = Device.Token(row[1], row[2])
             device = self.get_device(session_id) or Device(session_id)
             device.tokens.add(token)  # Won't trigger needs_to_be_updated
             self.device_cache[session_id] = device
-            self.token_device_mapping[token] = device
+            self.token_device_mapping[token.value] = device
 
         # Populate closed group members mapping cache
         query = SQLStatements.FETCH.format('*', CLOSED_GROUP_TABLE) + f''
@@ -176,26 +184,38 @@ class DatabaseHelperV2:
 
 class SQLStatements:
     # MARK: Create tables
-    CREATE_DEVICE_TOKEN_MAPPING_TABLE = (f'CREATE TABLE IF NOT EXISTS {PUBKEY_TOKEN_TABLE} ('
-                                         f'    {PUBKEY} TEXT NOT NULL,'
-                                         f'    {TOKEN} TEXT NOT NULL'
-                                         f')')
-    CREATE_CLOSED_GROUP_MEMBER_MAPPING_TABLE = (f'CREATE TABLE IF NOT EXISTS {CLOSED_GROUP_TABLE} ('
-                                                f'    {CLOSED_GROUP} TEXT NOT NULL,'
-                                                f'    {PUBKEY} TEXT NOT NULL'
-                                                f')')
-    CREATE_STATISTICS_DATA_TABLE = (f'CREATE TABLE IF NOT EXISTS {STATISTICS_TABLE} ('
-                                    f'    {START_DATE} REAL,'
-                                    f'    {END_DATE} REAL,'
-                                    f'    {IOS_PN_NUMBER} INTEGER,'
-                                    f'    {ANDROID_PN_NUMBER} INTEGER,'
-                                    f'    {TOTAL_MESSAGE_NUMBER} INTEGER,'
-                                    f'    {CLOSED_GROUP_MESSAGE_NUMBER} INTEGER,'
-                                    f'    {UNTRACKED_MESSAGE_NUMBER} INTEGER,'
-                                    f'    {DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER} INTEGER'
-                                    f')')
+    CREATE_DEVICE_TOKEN_MAPPING_TABLE = (
+        f'CREATE TABLE IF NOT EXISTS {PUBKEY_TOKEN_TABLE} ('
+        f'  {PUBKEY} TEXT NOT NULL,'
+        f'  {TOKEN} TEXT NOT NULL,'
+        f')'
+    )
+    CREATE_CLOSED_GROUP_MEMBER_MAPPING_TABLE = (
+        f'CREATE TABLE IF NOT EXISTS {CLOSED_GROUP_TABLE} ('
+        f'  {CLOSED_GROUP} TEXT NOT NULL,'
+        f'  {PUBKEY} TEXT NOT NULL'
+        f')'
+    )
+    CREATE_STATISTICS_DATA_TABLE = (
+        f'CREATE TABLE IF NOT EXISTS {STATISTICS_TABLE} ('
+        f'  {START_DATE} REAL,'
+        f'  {END_DATE} REAL,'
+        f'  {IOS_PN_NUMBER} INTEGER,'
+        f'  {ANDROID_PN_NUMBER} INTEGER,'
+        f'  {TOTAL_MESSAGE_NUMBER} INTEGER,'
+        f'  {CLOSED_GROUP_MESSAGE_NUMBER} INTEGER,'
+        f'  {UNTRACKED_MESSAGE_NUMBER} INTEGER,'
+        f'  {DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER} INTEGER'
+        f')'
+    )
+
     # MARK: Fetch
     FETCH = 'SELECT {} FROM {} '
     # MARK: Update
     NEW = 'INSERT INTO {} VALUES ({}) '
     DELETE = 'DELETE FROM {} '
+
+    INSERT_DEVICE_TYPE_COLUMN_INTO_DEVICE_TOKEN_MAPPING_TABLE = (
+        f'ALTER TABLE {PUBKEY_TOKEN_TABLE}'
+        f'ADD {DEVICE_TYPE} TEXT'
+    )

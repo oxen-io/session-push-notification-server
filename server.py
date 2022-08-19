@@ -14,7 +14,7 @@ from tornado.ioloop import IOLoop
 from pushNotificationHandler import PushNotificationHelperV2
 from const import *
 from lokiLogger import LokiLogger
-from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler, onion_request_v4_data_handler
+from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler, onion_request_v4_data_handler, DeviceType, is_ios_device_token
 from databaseHelperV2 import DatabaseHelperV2
 from observer import Observer
 from crypto import parse_junk
@@ -40,7 +40,6 @@ database_helper = DatabaseHelperV2(logger)
 loop = IOLoop.instance()
 signal.signal(signal.SIGTERM, handle_exit)
 
-
 # PN approach V2 #
 PN_helper_v2 = PushNotificationHelperV2(logger, database_helper, observer)
 
@@ -52,9 +51,13 @@ def register_v2(args):
         device_token = args[TOKEN]
     if PUBKEY in args:
         session_id = args[PUBKEY]
+    if DEVICE_TYPE in args:
+        device_type = DeviceType(args[DEVICE_TYPE])
+    else:
+        device_type = DeviceType.iOS if is_ios_device_token(device_token) else DeviceType.Android
 
     if device_token and session_id:
-        PN_helper_v2.register(device_token, session_id)
+        PN_helper_v2.register(device_token, session_id, device_type)
         return 1, SUCCESS
     else:
         logger.info("Onion routing register error")

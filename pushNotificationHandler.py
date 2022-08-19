@@ -61,7 +61,7 @@ class PushNotificationHelperV2:
             return device.session_id
         return None
 
-    def register(self, device_token, session_id):
+    def register(self, device_token, session_id, device_type):
         self.remove_device_token(device_token)
 
         device = self.database_helper.get_device(session_id)
@@ -72,7 +72,7 @@ class PushNotificationHelperV2:
             device.session_id = session_id
 
         # When an existed session id adds a new device
-        device.add_token(device_token)
+        device.add_token(Device.Token(device_token, device_type))
         device.save_to_cache(self.database_helper)
         self.push_fails[device_token] = 0
 
@@ -148,23 +148,27 @@ class PushNotificationHelperV2:
             for session_id in session_ids:
                 device_for_push = self.database_helper.get_device(session_id)
                 if device_for_push:
-                    for device_token in device_for_push.tokens:
-                        if is_ios_device_token(device_token):
+                    for token in device_for_push.tokens:
+                        if token.device_type == DeviceType.iOS:
                             alert = PayloadAlert(title='Session', body='You\'ve got a new message')
                             payload = Payload(alert=alert, badge=1, sound="default",
                                               mutable_content=True, category="SECRET",
                                               custom={'ENCRYPTED_DATA': message['data'],
                                                       'remote': 1})
-                            notifications_ios.append(Notification(token=device_token, payload=payload))
-                        else:
+                            notifications_ios.append(Notification(token=token.value, payload=payload))
+
+                        if token.device_type == DeviceType.Android:
                             notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
-                                                             token=device_token,
+                                                             token=token.value,
                                                              android=messaging.AndroidConfig(priority='high'))
                             notifications_android.append(notification)
+                        if token.device_type == DeviceType.Huawei:
+                            pass
 
         self.stats_data.increment_total_message(len(messages_wait_to_push))
         notifications_ios = []
         notifications_android = []
+        notifications_huawei = []
         for message in messages_wait_to_push:
             recipient = message['send_to']
             device = self.database_helper.get_device(recipient)
@@ -182,6 +186,7 @@ class PushNotificationHelperV2:
         try:
             self.execute_push_ios(notifications_ios, NotificationPriority.Immediate)
             self.execute_push_android(notifications_android)
+            self.execute_push_huawei(notifications_huawei)
         except Exception as e:
             self.logger.info('Something wrong happened when try to push notifications.')
             self.logger.exception(e)
@@ -209,6 +214,9 @@ class PushNotificationHelperV2:
                     self.handle_fail_result(token, ("HttpError", ""))
                 else:
                     self.push_fails[token] = 0
+
+    def execute_push_huawei(self, notifications):
+        pass
 
     def execute_push_ios(self, notifications, priority):
         if len(notifications) == 0:

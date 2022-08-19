@@ -1,4 +1,21 @@
+from utils import DeviceType, is_ios_device_token
+
+
 class Device:
+
+    class Token:
+        def __init__(self, value, device_type):
+            self.value = value
+            self.device_type = device_type
+            if self.device_type is None:
+                self.device_type = DeviceType.iOS if is_ios_device_token(value) else DeviceType.Android
+
+        def __str__(self):
+            return self.value
+
+        def __eq__(self, other):
+            return self.value == other.value
+
     def __init__(self, session_id=None):
         self.session_id = session_id
         self.tokens = set()
@@ -7,7 +24,7 @@ class Device:
     def to_database_rows(self):
         rows = []
         for token in self.tokens:
-            rows.append((self.session_id, token))
+            rows.append((self.session_id, token.value, token.device_type))
         self.needs_to_be_updated = False
         return rows
 
