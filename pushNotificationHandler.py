@@ -1,6 +1,5 @@
 from queue import *
 import asyncio
-from threading import Thread
 from PyAPNs.apns2.client import APNsClient, NotificationPriority, Notification, NotificationType
 from PyAPNs.apns2.payload import Payload, PayloadAlert
 from PyAPNs.apns2.errors import *
@@ -8,9 +7,11 @@ from utils import *
 import firebase_admin
 from firebase_admin import credentials, messaging
 from firebase_admin.exceptions import *
-from databaseModelV2 import *
 from databaseHelperV2 import *
 from pushNotificationStats import *
+from hms.src import push_admin
+from hms.src.push_admin._app import ApiCallError
+from hms.src.push_admin import messaging as huawei_messaging
 
 
 # PN approach V2 #
@@ -19,6 +20,8 @@ class PushNotificationHelperV2:
     def __init__(self, logger, database_helper, observer):
         self.apns = APNsClient(CERT_FILE, use_sandbox=debug_mode, use_alternative_port=False)
         self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
+        push_admin.initialize_app(HUAWEI_APP_ID, HUAWEI_APP_SECRET)
+
         self.message_queue = Queue()
         self.push_fails = {}
         self.logger = logger
@@ -151,19 +154,28 @@ class PushNotificationHelperV2:
                     for token in device_for_push.tokens:
                         if token.device_type == DeviceType.iOS:
                             alert = PayloadAlert(title='Session', body='You\'ve got a new message')
-                            payload = Payload(alert=alert, badge=1, sound="default",
-                                              mutable_content=True, category="SECRET",
-                                              custom={'ENCRYPTED_DATA': message['data'],
-                                                      'remote': 1})
+                            payload = Payload(
+                                alert=alert, badge=1, sound="default",
+                                mutable_content=True, category="SECRET",
+                                custom={'ENCRYPTED_DATA': message['data'],
+                                        'remote': 1}
+                            )
                             notifications_ios.append(Notification(token=token.value, payload=payload))
 
                         if token.device_type == DeviceType.Android:
-                            notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
-                                                             token=token.value,
-                                                             android=messaging.AndroidConfig(priority='high'))
+                            notification = messaging.Message(
+                                data={'ENCRYPTED_DATA': message['data']},
+                                token=token.value,
+                                android=messaging.AndroidConfig(priority='high')
+                            )
                             notifications_android.append(notification)
                         if token.device_type == DeviceType.Huawei:
-                            pass
+                            notification = huawei_messaging.Message(
+                                data={'ENCRYPTED_DATA': message['data']},
+                                token=[token.value],
+                                android=huawei_messaging.AndroidConfig(urgency=huawei_messaging.AndroidConfig.HIGH_PRIORITY)
+                            )
+                            notifications_huawei.append(notification)
 
         self.stats_data.increment_total_message(len(messages_wait_to_push))
         notifications_ios = []
@@ -216,7 +228,18 @@ class PushNotificationHelperV2:
                     self.push_fails[token] = 0
 
     def execute_push_huawei(self, notifications):
-        pass
+        if len(notifications) == 0:
+            return
+        self.logger.info(f"Push {len(notifications)} notifications for Huawei.")
+        self.stats_data.increment_android_pn(len(notifications))  # Count as Android push notification
+        for message in notifications:
+            try:
+                huawei_messaging.send_message(message)
+            except ApiCallError as error:
+                self.logger.exception(error)
+                self.handle_fail_result(message.token, (error.detail, ""))
+            except Exception as e:
+                self.logger.exception(e)
 
     def execute_push_ios(self, notifications, priority):
         if len(notifications) == 0:

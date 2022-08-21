@@ -47,5 +47,8 @@ FIREBASE_TOKEN = 'loki-5a81e-firebase-adminsdk-7plup-0698317995.json'
 
 BUNDLE_ID = 'com.loki-project.loki-messenger'
 
+HUAWEI_APP_ID = ""
+HUAWEI_APP_SECRET = ""
+
 debug_mode = False
 
