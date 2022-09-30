@@ -187,7 +187,7 @@ class SQLStatements:
     CREATE_DEVICE_TOKEN_MAPPING_TABLE = (
         f'CREATE TABLE IF NOT EXISTS {PUBKEY_TOKEN_TABLE} ('
         f'  {PUBKEY} TEXT NOT NULL,'
-        f'  {TOKEN} TEXT NOT NULL,'
+        f'  {TOKEN} TEXT NOT NULL'
         f')'
     )
     CREATE_CLOSED_GROUP_MEMBER_MAPPING_TABLE = (
