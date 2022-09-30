@@ -19,8 +19,8 @@ import time
 import urllib
 import urllib.parse
 
-from src.push_admin import _http
-from src.push_admin import _message_serializer
+from hms.src.push_admin import _http
+from hms.src.push_admin import _message_serializer
 
 
 class App(object):

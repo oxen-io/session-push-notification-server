@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import json
-from src.push_admin import _messages
+from hms.src.push_admin import _messages
 import six
 
 

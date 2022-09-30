@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from src.push_admin import _messages, _app
-from src import push_admin
+from hms.src.push_admin import _messages, _app
+from hms.src import push_admin
 
 """HUAWEI Cloud Messaging module."""
 

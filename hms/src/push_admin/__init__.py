@@ -17,7 +17,7 @@
 """Huawei Admin SDK for Python."""
 
 import threading
-from src.push_admin import _app
+from hms.src.push_admin import _app
 
 _apps = {}
 _apps_lock = threading.RLock()
