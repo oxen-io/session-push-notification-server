@@ -16,7 +16,7 @@ class DatabaseHelperV2:
         self.token_device_mapping = {}  # {token: Device}
         self.closed_group_cache = {}  # {closed_group_id: ClosedGroup}
         self.create_tables_if_needed()
-        self.migrate()
+        self.migration_device_type()
 
     # Database backup
     def should_back_up_database(self, now):
@@ -51,11 +51,14 @@ class DatabaseHelperV2:
         cursor.close()
         db_connection.close()
 
-    def migrate(self):
+    def migration_device_type(self):
         db_connection = sqlite3.connect(DATABASE_V2)
         cursor = db_connection.cursor()
-        cursor.execute(SQLStatements.INSERT_DEVICE_TYPE_COLUMN_INTO_DEVICE_TOKEN_MAPPING_TABLE)
-        db_connection.commit()
+        try:
+            cursor.execute(SQLStatements.INSERT_DEVICE_TYPE_COLUMN_INTO_DEVICE_TOKEN_MAPPING_TABLE)
+            db_connection.commit()
+        except Exception as e:
+            self.logger.error(e)
         cursor.close()
         db_connection.close()
 
