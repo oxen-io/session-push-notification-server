@@ -16,6 +16,9 @@ class Device:
         def __eq__(self, other):
             return self.value == other.value
 
+        def __hash__(self):
+            return str(self.value).__hash__()
+
     def __init__(self, session_id=None):
         self.session_id = session_id
         self.tokens = set()
