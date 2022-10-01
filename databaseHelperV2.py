@@ -97,22 +97,22 @@ class DatabaseHelperV2:
         db_connection = sqlite3.connect(DATABASE_V2)
         cursor = db_connection.cursor()
 
-        def batch_update(table, key, cache):
+        def batch_update(table, key, cache, value_count):
             rows_to_update = list()
             for item in cache.values():
                 if item.needs_to_be_updated:
                     rows_to_update += item.to_database_rows()
             query = SQLStatements.DELETE.format(table) + f'WHERE {key} = ?'
             cursor.executemany(query, [(row[0],) for row in rows_to_update])
-            statement = SQLStatements.NEW.format(table, ','.join('?' * 2))
+            statement = SQLStatements.NEW.format(table, ','.join('?' * value_count))
             cursor.executemany(statement, rows_to_update)
 
         try:
             # Update device token into database
-            batch_update(PUBKEY_TOKEN_TABLE, PUBKEY, self.device_cache)
+            batch_update(PUBKEY_TOKEN_TABLE, PUBKEY, self.device_cache, 3)
 
             # Update closed group into database
-            batch_update(CLOSED_GROUP_TABLE, CLOSED_GROUP, self.closed_group_cache)
+            batch_update(CLOSED_GROUP_TABLE, CLOSED_GROUP, self.closed_group_cache, 2)
 
             db_connection.commit()
         except Exception as e:
