@@ -37,8 +37,9 @@ class Device:
             self.needs_to_be_updated = True
 
     def remove_token(self, token):
-        if token in self.tokens:
-            self.tokens.remove(token)
+        token_type = Device.Token(token, DeviceType.Unknown)
+        if token_type in self.tokens:
+            self.tokens.remove(token_type)
             self.needs_to_be_updated = True
 
     def save_to_cache(self, db_helper):
