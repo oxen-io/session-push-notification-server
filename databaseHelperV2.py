@@ -16,6 +16,7 @@ class DatabaseHelperV2:
         self.token_device_mapping = {}  # {token: Device}
         self.closed_group_cache = {}  # {closed_group_id: ClosedGroup}
         self.create_tables_if_needed()
+        self.migrate()
 
     # Database backup
     def should_back_up_database(self, now):
