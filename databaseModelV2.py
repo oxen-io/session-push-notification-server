@@ -27,7 +27,7 @@ class Device:
     def to_database_rows(self):
         rows = []
         for token in self.tokens:
-            rows.append((self.session_id, token.value, token.device_type))
+            rows.append((self.session_id, token.value, token.device_type.value))
         self.needs_to_be_updated = False
         return rows
 
