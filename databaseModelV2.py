@@ -45,7 +45,7 @@ class Device:
     def save_to_cache(self, db_helper):
         db_helper.device_cache[self.session_id] = self
         for token in self.tokens:
-            db_helper.token_device_mapping[token] = self
+            db_helper.token_device_mapping[token.value] = self
 
 
 class ClosedGroup:
