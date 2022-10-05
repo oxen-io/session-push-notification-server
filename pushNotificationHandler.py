@@ -169,9 +169,10 @@ class PushNotificationHelperV2:
                                 android=messaging.AndroidConfig(priority='high')
                             )
                             notifications_android.append(notification)
+
                         if token.device_type == DeviceType.Huawei:
                             notification = huawei_messaging.Message(
-                                data={'ENCRYPTED_DATA': message['data']},
+                                data=message['data'],
                                 token=[token.value],
                                 android=huawei_messaging.AndroidConfig(urgency=huawei_messaging.AndroidConfig.HIGH_PRIORITY)
                             )
@@ -234,7 +235,8 @@ class PushNotificationHelperV2:
         self.stats_data.increment_android_pn(len(notifications))  # Count as Android push notification
         for message in notifications:
             try:
-                huawei_messaging.send_message(message)
+                response = huawei_messaging.send_message(message)
+                self.logger.info(f"code: {response.code}, msg: {response.reason}")
             except ApiCallError as error:
                 self.logger.exception(error)
                 self.handle_fail_result(message.token, (error.detail, ""))
