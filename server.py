@@ -3,6 +3,7 @@ import urllib3
 import resource
 import json
 import http
+import logging
 
 from flask import Flask, request, jsonify, abort
 from flask_httpauth import HTTPBasicAuth
@@ -121,7 +122,6 @@ def notify(args):
         data = args[DATA]
 
     if session_id and data:
-        logger.info('Notify to ' + session_id)
         PN_helper_v2.add_message_to_queue(args)
         return 1, SUCCESS
     else:
@@ -265,6 +265,9 @@ def get_statistics_data():
 
 
 if __name__ == '__main__':
+    app.logger.disabled = True
+    logging.getLogger('werkzeug').disabled = True
+    logging.getLogger('tornado.access').disabled = True
     database_helper.populate_cache()
     observer.run()
     PN_helper_v2.run()
