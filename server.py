@@ -267,6 +267,7 @@ def get_statistics_data():
 if __name__ == '__main__':
     app.logger.disabled = True
     logging.getLogger('werkzeug').disabled = True
+    logging.getLogger('tornado.access').disabled = True
     database_helper.populate_cache()
     observer.run()
     PN_helper_v2.run()
