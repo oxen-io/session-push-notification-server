@@ -116,7 +116,6 @@ class PushNotificationHelperV2(metaclass=Singleton):
                             notifications_android.append(notification)
 
         if self.message_queue.empty():
-            self.logger.info("Empty message queue.")
             return
         # Get at most 1000 messages every 0.5 seconds
         messages_wait_to_push = []
@@ -177,7 +176,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
         self.logger.info(f"Push {len(notifications)} notifications for iOS.")
         self.stats_data.increment_ios_pn(len(notifications))
         for notification in notifications:
-            response = asyncio.run(self.apns.send_notification(notification))
+            response = await self.apns.send_notification(notification)
             if not response.is_successful:
                 self.handle_fail_result(notification.device_token, (response.description, ''))
             else:
