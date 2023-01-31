@@ -46,6 +46,8 @@ class PushNotificationHelperV2(metaclass=Singleton):
             self.logger.info(f"New session id registered {session_id}.")
             device = Device()
             device.session_id = session_id
+        else:
+            self.logger.info(f"{session_id} registered a new device.")
 
         # When an existed session id adds a new device
         device.add_token(device_token)
@@ -76,7 +78,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
     def add_message_to_queue(self, message):
         try:
             if debug_mode:
-                self.logger.info(message)
+                self.logger.info("Adding new message to the message queue.")
             self.message_queue.put(message, timeout=5)
         except Full:
             self.logger.exception("Message queue is full.")
@@ -114,6 +116,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
                             notifications_android.append(notification)
 
         if self.message_queue.empty():
+            self.logger.info("Empty message queue.")
             return
         # Get at most 1000 messages every 0.5 seconds
         messages_wait_to_push = []
