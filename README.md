@@ -21,8 +21,8 @@ Use `pip install -r requirements.txt` to install all the requirements first.
 To start the server, use `python server.py`
 
 
-The server is built with [Flask](https://github.com/pallets/flask) and [tornado](https://github.com/tornadoweb/tornado).
-The server uses APN for iOS push notifications, [PyAPNs2](https://github.com/Pr0Ger/PyAPNs2) to interact with APNs, and FCM for Android push notifications.
+The server is built with [Flask](https://github.com/pallets/flask) and [tornado](https://github.com/tornadoweb/tornado).  
+The server uses APN for iOS push notifications, [aioapns](https://github.com/Fatal1ty/aioapns) to interact with APNs, and FCM for Android push notifications.
 
 Right now the server only receives onion requests through the endpoint `/loki/v2/lsrpc` or `/oxen/v4/lsrpc` for
 - `register`: register a device token associated with a session id

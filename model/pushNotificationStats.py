@@ -7,7 +7,7 @@ import utils
 class PushNotificationStats:
     # Init #
     def __init__(self):
-        self.last_statistics_date = datetime.now()
+        self.start_date = datetime.now()
         self.total_messages = 0
         self.notification_counter_ios = 0
         self.notification_counter_android = 0
@@ -26,12 +26,12 @@ class PushNotificationStats:
     def copy(self):
         return copy.deepcopy(self)
 
-    def should_store_data(self, now):
-        time_diff = now - self.last_statistics_date
-        return time_diff.total_seconds() >= 12 * 60 * 60
+    def should_create_new_entry(self, now):
+        time_diff = now - self.start_date
+        return time_diff.days > 0
 
     def reset(self, now):
-        self.last_statistics_date = now
+        self.start_date = now
         self.total_messages = 0
         self.notification_counter_ios = 0
         self.notification_counter_android = 0
@@ -40,7 +40,7 @@ class PushNotificationStats:
         self.deduplicated_one_on_one_messages = 0
 
     def to_database_row(self):
-        return (self.last_statistics_date.timestamp(),
+        return (self.start_date.timestamp(),
                 datetime.now().timestamp(),
                 self.notification_counter_ios,
                 self.notification_counter_android,
