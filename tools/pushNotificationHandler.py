@@ -86,7 +86,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
             self.logger.exception(e)
             raise e
 
-    def send_push_notification(self):
+    async def send_push_notification(self):
 
         def generate_notifications(session_ids):
             for session_id in session_ids:
@@ -140,7 +140,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 if debug_mode:
                     self.logger.info(f'Ignore message to {recipient}.')
         try:
-            self.execute_push_ios(notifications_ios)
+            await self.execute_push_ios(notifications_ios)
             self.execute_push_android(notifications_android)
         except Exception as e:
             self.logger.info('Something wrong happened when try to push notifications.')
@@ -170,7 +170,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 else:
                     self.push_fails[token] = 0
 
-    def execute_push_ios(self, notifications):
+    async def execute_push_ios(self, notifications):
         if len(notifications) == 0:
             return
         self.logger.info(f"Push {len(notifications)} notifications for iOS.")

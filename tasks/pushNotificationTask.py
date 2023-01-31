@@ -10,5 +10,5 @@ class PushNotificationTask(BaseTask):
 
     async def task(self):
         while self.is_running:
-            self.notification_helper.send_push_notification()
+            await self.notification_helper.send_push_notification()
             await asyncio.sleep(0.5)
