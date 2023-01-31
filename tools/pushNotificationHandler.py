@@ -15,7 +15,7 @@ from queue import *
 class PushNotificationHelperV2(metaclass=Singleton):
     # Init #
     def __init__(self):
-        self.apns = APNs(client_cert=CERT_FILE, use_sandbox=debug_mode, topic=BUNDLE_ID)
+        self.apns = None  # Need to create this instance in the same runLoop of sending notifications
         self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
         self.push_fails = {}
         self.stats_data = PushNotificationStats()
@@ -175,9 +175,10 @@ class PushNotificationHelperV2(metaclass=Singleton):
             return
         self.logger.info(f"Push {len(notifications)} notifications for iOS.")
         self.stats_data.increment_ios_pn(len(notifications))
-        apns = APNs(client_cert=CERT_FILE, use_sandbox=debug_mode, topic=BUNDLE_ID)
+        if self.apns is None:
+            self.apns = APNs(client_cert=CERT_FILE, use_sandbox=debug_mode, topic=BUNDLE_ID)
         for notification in notifications:
-            response = await apns.send_notification(notification)
+            response = await self.apns.send_notification(notification)
             if not response.is_successful:
                 self.handle_fail_result(notification.device_token, (response.description, ''))
             else:
