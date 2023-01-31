@@ -104,10 +104,12 @@ class PushNotificationHelperV2(metaclass=Singleton):
                             custom = {'ENCRYPTED_DATA': message['data'],
                                       'remote': 1}
                             payload.update(custom)
-                            request = NotificationRequest(device_token=device_token,
-                                                          message={'aps': payload},
-                                                          priority=PRIORITY_HIGH,
-                                                          push_type=PushType.ALERT)
+                            request = NotificationRequest(
+                                device_token=device_token,
+                                message=payload,
+                                priority=PRIORITY_HIGH,
+                                push_type=PushType.ALERT
+                            )
                             notifications_ios.append(request)
                         else:
                             notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
