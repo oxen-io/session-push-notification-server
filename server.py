@@ -2,6 +2,8 @@ import signal
 import urllib3
 import resource
 import json
+import http
+import logging
 
 from flask import Flask, request, jsonify, abort
 from flask_httpauth import HTTPBasicAuth
@@ -12,11 +14,11 @@ from tornado.ioloop import IOLoop
 
 from taskRunner import TaskRunner
 from const import *
-from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler
-
+from utils import decrypt, encrypt, make_symmetric_key, onion_request_data_handler, onion_request_v4_data_handler
 from tools.lokiLogger import LokiLogger
 from tools.databaseHelperV2 import DatabaseHelperV2
 from tools.pushNotificationHandler import PushNotificationHelperV2
+from crypto import parse_junk
 
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 urllib3.disable_warnings()
@@ -113,7 +115,6 @@ def notify(args):
         data = args[DATA]
 
     if session_id and data:
-        LokiLogger().logger.info('Notify to ' + session_id)
         PushNotificationHelperV2().add_message_to_queue(args)
         return 1, SUCCESS
     else:
@@ -125,6 +126,30 @@ Routing = {'register': register_v2,
            'subscribe_closed_group': subscribe_closed_group,
            'unsubscribe_closed_group': unsubscribe_closed_group,
            'notify': notify}
+
+
+def onion_request_v4_body_handler(parameters):
+    try:
+        endpoint = parameters['endpoint']
+        if endpoint.startswith('/'):
+            endpoint = endpoint[1:]
+
+        if debug_mode:
+            LokiLogger().logger.info(parameters)
+        func = Routing[endpoint]
+        code, message = func(parameters)
+        body = json.dumps({CODE: code, MSG: message})
+        response = json.dumps({CODE: 200, HEADERS: {'content-type': 'application/json'}})
+
+    except Exception as e:
+        LokiLogger().logger.error(e)
+        body = json.dumps({CODE: 0, MSG: str(e)})
+        response = json.dumps({CODE: 400, HEADERS: {'content-type': 'application/json'}})
+
+    v4response = b''.join(
+        (b'l', str(len(response)).encode(), b':', response.encode(), str(len(body)).encode(), b':', body.encode(), b'e')
+    )
+    return v4response
 
 
 def onion_request_body_handler(body):
@@ -178,6 +203,27 @@ def onion_request_v2():
     return onion_request_body_handler(body)
 
 
+@app.route('/oxen/v4/lsrpc', methods=[POST])
+def onion_request_v4():
+    junk = None
+
+    try:
+        junk = parse_junk(request.data)
+    except RuntimeError as e:
+        app.logger.warning("Failed to decrypt onion request: {}".format(e))
+        abort(http.HTTPStatus.BAD_REQUEST)
+    body = {}
+
+    if junk:
+        body = onion_request_v4_data_handler(junk)
+    else:
+        LokiLogger().logger.error(request.form)
+
+    v4response = onion_request_v4_body_handler(body)
+
+    return junk.transformReply(v4response)
+
+
 @auth.verify_password
 def verify_password(username, password):
     return check_password_hash(password_hash, password)
@@ -212,6 +258,9 @@ def get_statistics_data():
 
 
 if __name__ == '__main__':
+    app.logger.disabled = True
+    logging.getLogger('werkzeug').disabled = True
+    logging.getLogger('tornado.access').disabled = True
     runner.run_tasks()
     port = 3000 if debug_mode else 5000
     http_server = HTTPServer(WSGIContainer(app), no_keep_alive=True)

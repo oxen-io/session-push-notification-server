@@ -11,7 +11,7 @@ import json
 from datetime import datetime
 from threading import Thread
 from queue import Queue
-
+from typing import Tuple
 
 def timestamp_to_formatted_date(timestamp):
     if timestamp is None:
@@ -82,6 +82,48 @@ def onion_request_data_handler(data):
     body[CIPHERTEXT] = b64encode(ciphertext)
     return body
 
+
+def bencode_consume_string(body: memoryview) -> Tuple[memoryview, memoryview]:
+    """
+    Parses a bencoded byte string from the beginning of `body`.  Returns a pair of memoryviews on
+    success: the first is the string byte data; the second is the remaining data (i.e. after the
+    consumed string).
+    Raises ValueError on parse failure.
+    """
+    pos = 0
+    while pos < len(body) and 0x30 <= body[pos] <= 0x39:  # 1+ digits
+        pos += 1
+    if pos == 0 or pos >= len(body) or body[pos] != 0x3A:  # 0x3a == ':'
+        raise ValueError("Invalid string bencoding: did not find `N:` length prefix")
+
+    strlen = int(body[0:pos])  # parse the digits as a base-10 integer
+    pos += 1  # skip the colon
+    if pos + strlen > len(body):
+        raise ValueError("Invalid string bencoding: length exceeds buffer")
+    return body[pos : pos + strlen], body[pos + strlen :]
+
+def onion_request_v4_data_handler(junk):
+    if not (junk.payload.startswith(b'l') and junk.payload.endswith(b'e')):
+        raise RuntimeError("Invalid onion request body: expected bencoded list")
+    belems = memoryview(junk.payload)[1:-1]
+    # Metadata json; this element is always required:
+    meta, belems = bencode_consume_string(belems)
+
+    meta = json.loads(meta.tobytes())
+
+    # Then we can have a second optional string containing the body:
+    if len(belems) > 1:
+        subreq_body, belems = bencode_consume_string(belems)
+        if len(belems):
+            raise RuntimeError("Invalid v4 onion request: found more than 2 parts")
+    else:
+        subreq_body = b''
+
+    subreq_body_json = json.loads(str(subreq_body, 'utf-8'))
+
+
+    subreq_body_json.update(meta)
+    return subreq_body_json
 
 class TaskQueue(Queue):
 
