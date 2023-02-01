@@ -2,21 +2,24 @@ import sqlite3
 import utils
 from datetime import datetime
 from const import *
-from databaseModelV2 import *
-from pushNotificationStats import PushNotificationStats
-from utils import TaskQueue
+from model.databaseModelV2 import *
+from model.pushNotificationStats import PushNotificationStats
+from utils import TaskQueue, Singleton
+from tools.lokiLogger import LokiLogger
 
 
-class DatabaseHelperV2:
-    def __init__(self, logger):
-        self.logger = logger
+class DatabaseHelperV2(metaclass=Singleton):
+    def __init__(self):
+        self.logger = LokiLogger().logger
         self.last_backup = datetime.now()
+        self.last_flush = None
         self.task_queue = TaskQueue()
         self.device_cache = {}  # {session_id: Device}
         self.token_device_mapping = {}  # {token: Device}
         self.closed_group_cache = {}  # {closed_group_id: ClosedGroup}
         self.create_tables_if_needed()
         self.migration_device_type()
+        self.populate_cache()
 
     # Database backup
     def should_back_up_database(self, now):
@@ -97,7 +100,8 @@ class DatabaseHelperV2:
             self.task_queue.add_task(self.flush)
 
     def flush(self):
-        self.logger.info(f"Start to sync to DB at {datetime.now()}.")
+        now = datetime.now()
+        self.logger.info(f"Start to sync to DB at {now}.")
         db_connection = sqlite3.connect(DATABASE_V2)
         cursor = db_connection.cursor()
 
@@ -119,6 +123,8 @@ class DatabaseHelperV2:
             batch_update(CLOSED_GROUP_TABLE, CLOSED_GROUP, self.closed_group_cache, 2)
 
             db_connection.commit()
+
+            self.last_flush = now
         except Exception as e:
             error_message = f"Flush exception: {e}"
             self.logger.error(error_message)
@@ -134,12 +140,26 @@ class DatabaseHelperV2:
         return self.closed_group_cache.get(closed_group_id, None)
 
     # Statistics
+    def create_new_entry_for_stats_data_async(self, stats_data):
+        self.task_queue.add_task(self.create_new_entry_for_stats_data, stats_data)
+
+    def create_new_entry_for_stats_data(self, stats_data):
+        db_connection = sqlite3.connect(DATABASE_V2)
+        cursor = db_connection.cursor()
+        statement = SQLStatements.NEW.format(STATISTICS_TABLE, ','.join('?' * 8))
+        cursor.execute(statement, stats_data.to_database_row())
+        db_connection.commit()
+        cursor.close()
+        db_connection.close()
+
     def store_stats_data_async(self, stats_data):
         self.task_queue.add_task(self.store_stats_data, stats_data)
 
     def store_stats_data(self, stats_data):
         db_connection = sqlite3.connect(DATABASE_V2)
         cursor = db_connection.cursor()
+        statement = SQLStatements.DELETE.format(STATISTICS_TABLE) + f'WHERE {START_DATE} = {stats_data.start_date.timestamp()}'
+        cursor.execute(statement)
         statement = SQLStatements.NEW.format(STATISTICS_TABLE, ','.join('?' * 8))
         cursor.execute(statement, stats_data.to_database_row())
         db_connection.commit()
