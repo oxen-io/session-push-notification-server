@@ -96,14 +96,14 @@ class PushNotificationHelperV2(metaclass=Singleton):
                         if is_ios_device_token(device_token):
                             alert = {'title': 'Session',
                                      'body': 'You\'ve got a new message'}
-                            payload = {'alert': alert,
-                                       'badge': 1,
-                                       'sound': 'default',
-                                       'mutable-content': 1,
-                                       'category': 'SECRET'}
-                            custom = {'ENCRYPTED_DATA': message['data'],
-                                      'remote': 1}
-                            payload.update(custom)
+                            aps = {'alert': alert,
+                                   'badge': 1,
+                                   'sound': 'default',
+                                   'mutable-content': 1,
+                                   'category': 'SECRET'}
+                            payload = {'aps': aps,
+                                       'ENCRYPTED_DATA': message['data'],
+                                       'remote': 1}
                             request = NotificationRequest(
                                 device_token=device_token,
                                 message=payload,
