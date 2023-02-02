@@ -84,7 +84,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
     # Notification #
     def add_message_to_queue(self, message):
         try:
-            if debug_mode:
+            if Environment.debug_mode:
                 self.logger.info("Adding new message to the message queue.")
             self.message_queue.put(message, timeout=5)
         except Full:
@@ -156,7 +156,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 generate_notifications(closed_group.members)
             else:
                 self.stats_data.increment_untracked_message(1)
-                if debug_mode:
+                if Environment.debug_mode:
                     self.logger.info(f'Ignore message to {recipient}.')
         try:
             await self.execute_push_ios(notifications_ios)
