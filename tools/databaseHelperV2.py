@@ -1,8 +1,7 @@
 import sqlite3
 import utils
 from datetime import datetime
-from const import *
-from model.databaseModelV2 import *
+from model.databaseModelV2 import Device, ClosedGroup
 from model.pushNotificationStats import PushNotificationStats
 from utils import TaskQueue, Singleton
 from tools.lokiLogger import LokiLogger
@@ -10,6 +9,8 @@ from tools.lokiLogger import LokiLogger
 
 class DatabaseHelperV2(metaclass=Singleton):
     def __init__(self):
+        self.database = 'session_pn_server.db'
+        self.backup_database = 'session_pn_server_backup.db'
         self.logger = LokiLogger().logger
         self.last_backup = datetime.now()
         self.last_flush = None
@@ -18,6 +19,7 @@ class DatabaseHelperV2(metaclass=Singleton):
         self.token_device_mapping = {}  # {token: Device}
         self.closed_group_cache = {}  # {closed_group_id: ClosedGroup}
         self.create_tables_if_needed()
+        self.migration_device_type()
         self.populate_cache()
 
     # Database backup
@@ -30,8 +32,8 @@ class DatabaseHelperV2(metaclass=Singleton):
 
     def back_up_database(self):
         self.logger.info(f"Start to backup database at {datetime.now()}.")
-        db_connection = sqlite3.connect(DATABASE_V2)
-        backup_db_connection = sqlite3.connect(DATABASE_V2_BACKUP)
+        db_connection = sqlite3.connect(self.database)
+        backup_db_connection = sqlite3.connect(self.backup_database)
         try:
             with backup_db_connection:
                 db_connection.backup(backup_db_connection)
@@ -44,33 +46,44 @@ class DatabaseHelperV2(metaclass=Singleton):
             self.logger.info(f"Finish to backup database at {datetime.now()}.")
 
     def create_tables_if_needed(self):
-        db_connection = sqlite3.connect(DATABASE_V2)
+        db_connection = sqlite3.connect(self.database)
         cursor = db_connection.cursor()
-        cursor.execute(SQLStatements.CREATE_DEVICE_TOKEN_MAPPING_TABLE)
-        cursor.execute(SQLStatements.CREATE_CLOSED_GROUP_MEMBER_MAPPING_TABLE)
-        cursor.execute(SQLStatements.CREATE_STATISTICS_DATA_TABLE)
+        cursor.execute(Device.CREATE_TABLE)
+        cursor.execute(ClosedGroup.CREATE_TABLE)
+        cursor.execute(PushNotificationStats.CREATE_TABLE)
         db_connection.commit()
         cursor.close()
         db_connection.close()
 
+    def migration_device_type(self):
+        db_connection = sqlite3.connect(self.database)
+        cursor = db_connection.cursor()
+        try:
+            cursor.execute(Device.INSERT_DEVICE_TOKEN)
+            db_connection.commit()
+        except Exception as e:
+            self.logger.error(e)
+        cursor.close()
+        db_connection.close()
+
     def populate_cache(self):
-        db_connection = sqlite3.connect(DATABASE_V2)
+        db_connection = sqlite3.connect(self.database)
         cursor = db_connection.cursor()
 
         # Populate device token mapping cache
-        query = SQLStatements.FETCH.format('*', PUBKEY_TOKEN_TABLE)
+        query = SQL.FETCH.format('*', Device.TABLE)
         cursor.execute(query)
         device_token_rows = cursor.fetchall()
         for row in device_token_rows:
             session_id = row[0]
-            token = row[1]
+            token = Device.Token(row[1], row[2])
             device = self.get_device(session_id) or Device(session_id)
             device.tokens.add(token)  # Won't trigger needs_to_be_updated
             self.device_cache[session_id] = device
-            self.token_device_mapping[token] = device
+            self.token_device_mapping[token.value] = device
 
         # Populate closed group members mapping cache
-        query = SQLStatements.FETCH.format('*', CLOSED_GROUP_TABLE) + f''
+        query = SQL.FETCH.format('*', ClosedGroup.TABLE) + f''
         cursor.execute(query)
         closed_group_rows = cursor.fetchall()
         for row in closed_group_rows:
@@ -90,25 +103,25 @@ class DatabaseHelperV2(metaclass=Singleton):
     def flush(self):
         now = datetime.now()
         self.logger.info(f"Start to sync to DB at {now}.")
-        db_connection = sqlite3.connect(DATABASE_V2)
+        db_connection = sqlite3.connect(self.database)
         cursor = db_connection.cursor()
 
-        def batch_update(table, key, cache):
+        def batch_update(table, key, cache, value_count):
             rows_to_update = list()
             for item in cache.values():
                 if item.needs_to_be_updated:
                     rows_to_update += item.to_database_rows()
-            query = SQLStatements.DELETE.format(table) + f'WHERE {key} = ?'
+            query = SQL.DELETE.format(table) + f'WHERE {key} = ?'
             cursor.executemany(query, [(row[0],) for row in rows_to_update])
-            statement = SQLStatements.NEW.format(table, ','.join('?' * 2))
+            statement = SQL.NEW.format(table, ','.join('?' * value_count))
             cursor.executemany(statement, rows_to_update)
 
         try:
             # Update device token into database
-            batch_update(PUBKEY_TOKEN_TABLE, PUBKEY, self.device_cache)
+            batch_update(Device.TABLE, Device.Column.PUBKEY, self.device_cache, len(Device.COLUMNS))
 
             # Update closed group into database
-            batch_update(CLOSED_GROUP_TABLE, CLOSED_GROUP, self.closed_group_cache)
+            batch_update(ClosedGroup.TABLE, ClosedGroup.Column.CLOSED_GROUP, self.closed_group_cache, len(ClosedGroup.COLUMNS))
 
             db_connection.commit()
 
@@ -132,9 +145,9 @@ class DatabaseHelperV2(metaclass=Singleton):
         self.task_queue.add_task(self.create_new_entry_for_stats_data, stats_data)
 
     def create_new_entry_for_stats_data(self, stats_data):
-        db_connection = sqlite3.connect(DATABASE_V2)
+        db_connection = sqlite3.connect(self.database)
         cursor = db_connection.cursor()
-        statement = SQLStatements.NEW.format(STATISTICS_TABLE, ','.join('?' * 8))
+        statement = SQL.NEW.format(PushNotificationStats.TABLE, ','.join('?' * 8))
         cursor.execute(statement, stats_data.to_database_row())
         db_connection.commit()
         cursor.close()
@@ -144,24 +157,24 @@ class DatabaseHelperV2(metaclass=Singleton):
         self.task_queue.add_task(self.store_stats_data, stats_data)
 
     def store_stats_data(self, stats_data):
-        db_connection = sqlite3.connect(DATABASE_V2)
+        db_connection = sqlite3.connect(self.database)
         cursor = db_connection.cursor()
-        statement = SQLStatements.DELETE.format(STATISTICS_TABLE) + f'WHERE {START_DATE} = {stats_data.start_date.timestamp()}'
+        statement = SQL.DELETE.format(PushNotificationStats.TABLE) + f'WHERE {PushNotificationStats.Column.START_DATE} = {stats_data.start_date.timestamp()}'
         cursor.execute(statement)
-        statement = SQLStatements.NEW.format(STATISTICS_TABLE, ','.join('?' * 8))
+        statement = SQL.NEW.format(PushNotificationStats.TABLE, ','.join('?' * 8))
         cursor.execute(statement, stats_data.to_database_row())
         db_connection.commit()
         cursor.close()
         db_connection.close()
 
     def get_stats_data(self, start_date, end_date):
-        db_connection = sqlite3.connect(DATABASE_V2)
+        db_connection = sqlite3.connect(self.database)
         cursor = db_connection.cursor()
-        statement = SQLStatements.FETCH.format('*', STATISTICS_TABLE)
+        statement = SQL.FETCH.format('*', PushNotificationStats.TABLE)
         if start_date:
-            statement += f'WHERE {START_DATE} >= {utils.formatted_date_to_timestamp(start_date)}'
+            statement += f'WHERE {PushNotificationStats.Column.START_DATE} >= {utils.formatted_date_to_timestamp(start_date)}'
             if end_date:
-                statement += f' AND {END_DATE} <= {utils.formatted_date_to_timestamp(end_date)}'
+                statement += f' AND {PushNotificationStats.Column.END_DATE} <= {utils.formatted_date_to_timestamp(end_date)}'
         cursor.execute(statement)
         rows = cursor.fetchall()
         data = []
@@ -172,10 +185,10 @@ class DatabaseHelperV2(metaclass=Singleton):
         ios, android, total = self.get_device_number()
 
         # Final result
-        result = {DATA: data,
-                  IOS_DEVICE_NUMBER: ios,
-                  ANDROID_DEVICE_NUMBER: android,
-                  TOTAL_SESSION_ID_NUMBER: total}
+        result = {PushNotificationStats.ResponseKey.DATA: data,
+                  PushNotificationStats.ResponseKey.IOS_DEVICE_NUMBER: ios,
+                  PushNotificationStats.ResponseKey.ANDROID_DEVICE_NUMBER: android,
+                  PushNotificationStats.ResponseKey.TOTAL_SESSION_ID_NUMBER: total}
 
         cursor.close()
         db_connection.close()
@@ -194,28 +207,10 @@ class DatabaseHelperV2(metaclass=Singleton):
         return ios, android, total
 
 
-class SQLStatements:
-    # MARK: Create tables
-    CREATE_DEVICE_TOKEN_MAPPING_TABLE = (f'CREATE TABLE IF NOT EXISTS {PUBKEY_TOKEN_TABLE} ('
-                                         f'    {PUBKEY} TEXT NOT NULL,'
-                                         f'    {TOKEN} TEXT NOT NULL'
-                                         f')')
-    CREATE_CLOSED_GROUP_MEMBER_MAPPING_TABLE = (f'CREATE TABLE IF NOT EXISTS {CLOSED_GROUP_TABLE} ('
-                                                f'    {CLOSED_GROUP} TEXT NOT NULL,'
-                                                f'    {PUBKEY} TEXT NOT NULL'
-                                                f')')
-    CREATE_STATISTICS_DATA_TABLE = (f'CREATE TABLE IF NOT EXISTS {STATISTICS_TABLE} ('
-                                    f'    {START_DATE} REAL,'
-                                    f'    {END_DATE} REAL,'
-                                    f'    {IOS_PN_NUMBER} INTEGER,'
-                                    f'    {ANDROID_PN_NUMBER} INTEGER,'
-                                    f'    {TOTAL_MESSAGE_NUMBER} INTEGER,'
-                                    f'    {CLOSED_GROUP_MESSAGE_NUMBER} INTEGER,'
-                                    f'    {UNTRACKED_MESSAGE_NUMBER} INTEGER,'
-                                    f'    {DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER} INTEGER'
-                                    f')')
+class SQL:
     # MARK: Fetch
     FETCH = 'SELECT {} FROM {} '
     # MARK: Update
     NEW = 'INSERT INTO {} VALUES ({}) '
     DELETE = 'DELETE FROM {} '
+

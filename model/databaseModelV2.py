@@ -1,4 +1,43 @@
+from utils import DeviceType, is_ios_device_token
+from enum import Enum
+
+
 class Device:
+
+    class Column(Enum):
+        PUBKEY = 'pubKey'
+        TOKEN = 'token'
+        DEVICE_TYPE = 'device'
+
+    TABLE = 'token_pubkey_table'
+    COLUMNS = [column.value for column in Column]
+    CREATE_TABLE = (
+        f'CREATE TABLE IF NOT EXISTS {TABLE} ('
+        f'  {Column.PUBKEY} TEXT NOT NULL,'
+        f'  {Column.TOKEN} TEXT NOT NULL'
+        f')'
+    )
+    INSERT_DEVICE_TOKEN = (
+        f'ALTER TABLE {TABLE}'
+        f' ADD {Column.DEVICE_TYPE} TEXT'
+    )
+
+    class Token:
+        def __init__(self, value, device_type):
+            self.value = value
+            self.device_type = device_type
+            if self.device_type is None:
+                self.device_type = DeviceType.iOS if is_ios_device_token(value) else DeviceType.Android
+
+        def __str__(self):
+            return self.value
+
+        def __eq__(self, other):
+            return self.value == other.value
+
+        def __hash__(self):
+            return str(self.value).__hash__()
+
     def __init__(self, session_id=None):
         self.session_id = session_id
         self.tokens = set()
@@ -7,7 +46,7 @@ class Device:
     def to_database_rows(self):
         rows = []
         for token in self.tokens:
-            rows.append((self.session_id, token))
+            rows.append((self.session_id, token.value, token.device_type.value))
         self.needs_to_be_updated = False
         return rows
 
@@ -17,17 +56,32 @@ class Device:
             self.needs_to_be_updated = True
 
     def remove_token(self, token):
-        if token in self.tokens:
-            self.tokens.remove(token)
+        token_type = Device.Token(token, DeviceType.Unknown)
+        if token_type in self.tokens:
+            self.tokens.remove(token_type)
             self.needs_to_be_updated = True
 
     def save_to_cache(self, db_helper):
         db_helper.device_cache[self.session_id] = self
         for token in self.tokens:
-            db_helper.token_device_mapping[token] = self
+            db_helper.token_device_mapping[token.value] = self
 
 
 class ClosedGroup:
+
+    class Column(Enum):
+        CLOSED_GROUP = 'closedGroupPublicKey'
+        PUBKEY = 'pubKey'
+
+    TABLE = 'closed_group_table'
+    COLUMNS = [column.value for column in Column]
+    CREATE_TABLE = (
+        f'CREATE TABLE IF NOT EXISTS {TABLE} ('
+        f'  {Column.CLOSED_GROUP} TEXT NOT NULL,'
+        f'  {Column.PUBKEY} TEXT NOT NULL'
+        f')'
+    )
+
     def __init__(self, closed_group_id=None):
         self.closed_group_id = closed_group_id
         self.members = set()

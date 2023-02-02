@@ -1,5 +1,5 @@
 from tasks.baseTask import *
-from const import debug_mode
+from const import Environment
 from tools.observer import Observer
 from tools.pushNotificationHandler import PushNotificationHelperV2
 from tools.databaseHelperV2 import DatabaseHelperV2
@@ -28,10 +28,10 @@ class ObserveTask(BaseTask):
                 self.check_push_notification()
 
     def check_push_notification(self):
-        if self.stats_data.notification_counter_ios == self.last_ios_pn_number and not debug_mode:
+        if self.stats_data.notification_counter_ios == self.last_ios_pn_number and not Environment.debug_mode:
             self.observer.push_warning('No new iOS PN during the last period. iOS PN might be crashed.')
 
-        if self.stats_data.notification_counter_android == self.last_android_pn_number and not debug_mode:
+        if self.stats_data.notification_counter_android == self.last_android_pn_number and not Environment.debug_mode:
             self.observer.push_warning('No new Android PN during the last period. Android PN might be crashed.')
 
         self.last_ios_pn_number = self.stats_data.notification_counter_ios

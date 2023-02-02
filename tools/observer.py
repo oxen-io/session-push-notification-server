@@ -12,7 +12,7 @@ class Observer(metaclass=Singleton):
         self.subscribers = set()
 
         self.message_loop = MessageLoop(self.bot, self.handle)
-        if not debug_mode:
+        if not Environment.debug_mode:
             self.message_loop.run_as_thread(relax=1)
 
     def push_statistic_data(self, stats_data, now):
@@ -38,7 +38,7 @@ class Observer(metaclass=Singleton):
     def handle(self, message):
         content_type, chat_type, chat_id = telepot.glance(message)
         if content_type == 'text':
-            if debug_mode:
+            if Environment.debug_mode:
                 self.bot.sendMessage(chat_id, 'Debug mode. You won\'t get observer messages.')
                 return
             
