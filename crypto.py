@@ -6,8 +6,8 @@ from const import *
 # Copied from https://github.com/oxen-io/session-file-server/blob/dev/fileserver/crypto.py
 
 
-if os.path.exists(PRIVKEY_FILE):
-    with open(PRIVKEY_FILE, "r") as f:
+if os.path.exists(Environment.PRIVKEY_FILE):
+    with open(Environment.PRIVKEY_FILE, "r") as f:
         key = f.read()
         if key[-1] == '\n':
             key = key[:-1]

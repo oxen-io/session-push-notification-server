@@ -211,7 +211,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
         self.logger.info(f"Push {len(notifications)} notifications for iOS.")
         self.stats_data.increment_ios_pn(len(notifications))
         if self.apns is None:
-            self.apns = APNs(client_cert=CERT_FILE, use_sandbox=debug_mode, topic=BUNDLE_ID)
+            self.apns = APNs(client_cert=CERT_FILE, use_sandbox=debug_mode, topic='com.loki-project.loki-messenger')
         for notification in notifications:
             response = await self.apns.send_notification(notification)
             if not response.is_successful:

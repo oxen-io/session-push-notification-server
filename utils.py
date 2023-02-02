@@ -14,6 +14,9 @@ from queue import Queue
 from typing import Tuple
 from enum import Enum
 
+NONCE_LENGTH = 12
+TAG_LENGTH = 16
+
 
 def timestamp_to_formatted_date(timestamp):
     if timestamp is None:
@@ -45,8 +48,8 @@ def make_symmetric_key(client_pubkey):
         return None
 
     server_privkey = ''
-    if os.path.isfile(PRIVKEY_FILE):
-        with open(PRIVKEY_FILE, 'r') as server_privkey_file:
+    if os.path.isfile(Environment.PRIVKEY_FILE):
+        with open(Environment.PRIVKEY_FILE, 'r') as server_privkey_file:
             server_privkey = server_privkey_file.read()
         server_privkey_file.close()
     if len(server_privkey) == 0:
@@ -81,7 +84,7 @@ def onion_request_data_handler(data):
     ciphertext = data[4:ciphertext_length]
     body_as_string = data[ciphertext_length:].decode('utf-8')
     body = json.loads(body_as_string)
-    body[CIPHERTEXT] = b64encode(ciphertext)
+    body[HTTP.OnionRequest.CIPHERTEXT] = b64encode(ciphertext)
     return body
 
 

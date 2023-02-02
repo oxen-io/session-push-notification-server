@@ -1,7 +1,26 @@
 from utils import DeviceType, is_ios_device_token
+from enum import Enum
 
 
 class Device:
+
+    class Column(Enum):
+        PUBKEY = 'pubKey'
+        TOKEN = 'token'
+        DEVICE_TYPE = 'device'
+
+    TABLE = 'token_pubkey_table'
+    COLUMNS = [column.value for column in Column]
+    CREATE_TABLE = (
+        f'CREATE TABLE IF NOT EXISTS {TABLE} ('
+        f'  {Column.PUBKEY} TEXT NOT NULL,'
+        f'  {Column.TOKEN} TEXT NOT NULL'
+        f')'
+    )
+    INSERT_DEVICE_TOKEN = (
+        f'ALTER TABLE {TABLE}'
+        f' ADD {Column.DEVICE_TYPE} TEXT'
+    )
 
     class Token:
         def __init__(self, value, device_type):
@@ -49,6 +68,20 @@ class Device:
 
 
 class ClosedGroup:
+
+    class Column(Enum):
+        CLOSED_GROUP = 'closedGroupPublicKey'
+        PUBKEY = 'pubKey'
+
+    TABLE = 'closed_group_table'
+    COLUMNS = [column.value for column in Column]
+    CREATE_TABLE = (
+        f'CREATE TABLE IF NOT EXISTS {TABLE} ('
+        f'  {Column.CLOSED_GROUP} TEXT NOT NULL,'
+        f'  {Column.PUBKEY} TEXT NOT NULL'
+        f')'
+    )
+
     def __init__(self, closed_group_id=None):
         self.closed_group_id = closed_group_id
         self.members = set()

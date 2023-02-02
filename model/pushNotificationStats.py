@@ -1,10 +1,42 @@
 from datetime import datetime
 import copy
-from const import *
 import utils
+from enum import Enum
 
 
 class PushNotificationStats:
+
+    class ResponseKey(Enum):
+        DATA = 'data'
+        IOS_DEVICE_NUMBER = 'ios_device_number'
+        ANDROID_DEVICE_NUMBER = 'android_device_number'
+        TOTAL_SESSION_ID_NUMBER = 'total_session_id_number'
+
+    class Column(Enum):
+        START_DATE = 'start_date'
+        END_DATE = 'end_date'
+        IOS_PN_NUMBER = 'ios_pn_number'
+        ANDROID_PN_NUMBER = 'android_pn_number'
+        TOTAL_MESSAGE_NUMBER = 'total_message_number'
+        CLOSED_GROUP_MESSAGE_NUMBER = 'closed_group_message_number'
+        UNTRACKED_MESSAGE_NUMBER = 'untracked_message_number'
+        DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER = 'deduplicated_1_1_message_number'
+
+    TABLE = 'statistics_table'
+    COLUMNS = [column.value for column in Column]
+    CREATE_TABLE = (
+        f'CREATE TABLE IF NOT EXISTS {TABLE} ('
+        f'  {Column.START_DATE} REAL,'
+        f'  {Column.END_DATE} REAL,'
+        f'  {Column.IOS_PN_NUMBER} INTEGER,'
+        f'  {Column.ANDROID_PN_NUMBER} INTEGER,'
+        f'  {Column.TOTAL_MESSAGE_NUMBER} INTEGER,'
+        f'  {Column.CLOSED_GROUP_MESSAGE_NUMBER} INTEGER,'
+        f'  {Column.UNTRACKED_MESSAGE_NUMBER} INTEGER,'
+        f'  {Column.DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER} INTEGER'
+        f')'
+    )
+
     # Init #
     def __init__(self):
         self.start_date = datetime.now()
@@ -52,14 +84,14 @@ class PushNotificationStats:
     @classmethod
     def from_database_row(cls, row):
         return {
-            START_DATE: utils.timestamp_to_formatted_date(row[0]),
-            END_DATE: utils.timestamp_to_formatted_date(row[1]),
-            IOS_PN_NUMBER: row[2],
-            ANDROID_PN_NUMBER: row[3],
-            TOTAL_MESSAGE_NUMBER: row[4],
-            CLOSED_GROUP_MESSAGE_NUMBER: row[5],
-            UNTRACKED_MESSAGE_NUMBER: row[6],
-            DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER: row[7]
+            PushNotificationStats.Column.START_DATE: utils.timestamp_to_formatted_date(row[0]),
+            PushNotificationStats.Column.END_DATE: utils.timestamp_to_formatted_date(row[1]),
+            PushNotificationStats.Column.IOS_PN_NUMBER: row[2],
+            PushNotificationStats.Column.ANDROID_PN_NUMBER: row[3],
+            PushNotificationStats.Column.TOTAL_MESSAGE_NUMBER: row[4],
+            PushNotificationStats.Column.CLOSED_GROUP_MESSAGE_NUMBER: row[5],
+            PushNotificationStats.Column.UNTRACKED_MESSAGE_NUMBER: row[6],
+            PushNotificationStats.Column.DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER: row[7]
         }
 
     # Incremental #

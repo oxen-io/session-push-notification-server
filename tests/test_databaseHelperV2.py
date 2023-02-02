@@ -65,10 +65,10 @@ class DatabaseHelperV2Tests(unittest.TestCase):
         stats_data.increment_deduplicated_one_on_one_message(1)
 
         statistics_data = self.databaseHelper.get_stats_data(None, None)
-        total_columns_before = len(statistics_data[DATA])
+        total_columns_before = len(statistics_data[PushNotificationStats.ResponseKey.DATA])
         self.databaseHelper.store_stats_data(stats_data)
         statistics_data = self.databaseHelper.get_stats_data(None, None)
-        total_columns_after = len(statistics_data[DATA])
+        total_columns_after = len(statistics_data[PushNotificationStats.ResponseKey.DATA])
 
         self.assertEqual(total_columns_before + 1, total_columns_after)
 
