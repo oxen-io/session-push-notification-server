@@ -1,18 +1,17 @@
 from datetime import datetime
 import copy
 import utils
-from enum import Enum
 
 
 class PushNotificationStats:
 
-    class ResponseKey(Enum):
+    class ResponseKey:
         DATA = 'data'
         IOS_DEVICE_NUMBER = 'ios_device_number'
         ANDROID_DEVICE_NUMBER = 'android_device_number'
         TOTAL_SESSION_ID_NUMBER = 'total_session_id_number'
 
-    class Column(Enum):
+    class Column:
         START_DATE = 'start_date'
         END_DATE = 'end_date'
         IOS_PN_NUMBER = 'ios_pn_number'
@@ -23,7 +22,9 @@ class PushNotificationStats:
         DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER = 'deduplicated_1_1_message_number'
 
     TABLE = 'statistics_table'
-    COLUMNS = [column.value for column in Column]
+    COLUMNS = [Column.START_DATE, Column.END_DATE, Column.IOS_PN_NUMBER, Column.ANDROID_PN_NUMBER,
+               Column.TOTAL_MESSAGE_NUMBER, Column.CLOSED_GROUP_MESSAGE_NUMBER, Column.UNTRACKED_MESSAGE_NUMBER,
+               Column.DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER]
     CREATE_TABLE = (
         f'CREATE TABLE IF NOT EXISTS {TABLE} ('
         f'  {Column.START_DATE} REAL,'

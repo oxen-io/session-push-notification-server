@@ -1,16 +1,15 @@
 from utils import DeviceType, is_ios_device_token
-from enum import Enum
 
 
 class Device:
 
-    class Column(Enum):
+    class Column:
         PUBKEY = 'pubKey'
         TOKEN = 'token'
         DEVICE_TYPE = 'device'
 
     TABLE = 'token_pubkey_table'
-    COLUMNS = [column.value for column in Column]
+    COLUMNS = [Column.PUBKEY, Column.TOKEN, Column.DEVICE_TYPE]
     CREATE_TABLE = (
         f'CREATE TABLE IF NOT EXISTS {TABLE} ('
         f'  {Column.PUBKEY} TEXT NOT NULL,'
@@ -69,12 +68,12 @@ class Device:
 
 class ClosedGroup:
 
-    class Column(Enum):
+    class Column:
         CLOSED_GROUP = 'closedGroupPublicKey'
         PUBKEY = 'pubKey'
 
     TABLE = 'closed_group_table'
-    COLUMNS = [column.value for column in Column]
+    COLUMNS = [Column.CLOSED_GROUP, Column.PUBKEY]
     CREATE_TABLE = (
         f'CREATE TABLE IF NOT EXISTS {TABLE} ('
         f'  {Column.CLOSED_GROUP} TEXT NOT NULL,'

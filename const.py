@@ -1,9 +1,6 @@
-from enum import Enum
-
-
 class HTTP:
 
-    class Response(Enum):
+    class Response:
         CODE = 'code'
         DATA = 'data'
         MSG = 'message'
@@ -16,20 +13,20 @@ class HTTP:
         FAIL = 'Fail'
         PARA_MISSING = 'Missing parameter'
 
-    class RegistrationRequest(Enum):
+    class RegistrationRequest:
         PUBKEY = 'pubKey'
         TOKEN = 'token'
         DEVICE_TYPE = 'device'
 
-    class NotificationRequest(Enum):
+    class NotificationRequest:
         SEND_TO = 'send_to'
         DATA = 'data'
 
-    class SubscriptionRequest(Enum):
+    class SubscriptionRequest:
         CLOSED_GROUP = 'closedGroupPublicKey'
         PUBKEY = 'pubKey'
 
-    class StatsDataRequest(Enum):
+    class StatsDataRequest:
         START_DATE = 'start_date'
         END_DATE = 'end_date'
         IOS_PN_NUMBER = 'ios_pn_number'
@@ -39,7 +36,7 @@ class HTTP:
         UNTRACKED_MESSAGE_NUMBER = 'untracked_message_number'
         DEDUPLICATED_ONE_ON_ONE_MESSAGE_NUMBER = 'deduplicated_1_1_message_number'
 
-    class OnionRequest(Enum):
+    class OnionRequest:
         CIPHERTEXT = 'ciphertext'
         EPHEMERAL = 'ephemeral_key'
 
