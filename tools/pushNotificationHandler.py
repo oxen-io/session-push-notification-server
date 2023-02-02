@@ -21,8 +21,8 @@ class PushNotificationHelperV2(metaclass=Singleton):
     # Init #
     def __init__(self):
         self.apns = None  # Need to create this instance in the same runLoop of sending notifications
-        self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(FIREBASE_TOKEN))
-        push_admin.initialize_app(HUAWEI_APP_ID, HUAWEI_APP_SECRET)
+        self.firebase_app = firebase_admin.initialize_app(credentials.Certificate(Environment.FIREBASE_TOKEN))
+        push_admin.initialize_app(Environment.HUAWEI_APP_ID, Environment.HUAWEI_APP_SECRET)
 
         self.push_fails = {}
         self.stats_data = PushNotificationStats()
@@ -211,7 +211,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
         self.logger.info(f"Push {len(notifications)} notifications for iOS.")
         self.stats_data.increment_ios_pn(len(notifications))
         if self.apns is None:
-            self.apns = APNs(client_cert=CERT_FILE, use_sandbox=debug_mode, topic='com.loki-project.loki-messenger')
+            self.apns = APNs(client_cert=Environment.CERT_FILE, use_sandbox=Environment.debug_mode, topic='com.loki-project.loki-messenger')
         for notification in notifications:
             response = await self.apns.send_notification(notification)
             if not response.is_successful:
