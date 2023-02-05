@@ -305,8 +305,8 @@ def get_statistics_data():
 
 if __name__ == '__main__':
     app.logger.disabled = True
-    logging.getLogger('werkzeug').disabled = True
-    logging.getLogger('tornado.access').disabled = True
+    logging.getLogger('werkzeug').disabled = not Environment.debug_mode
+    logging.getLogger('tornado.access').disabled = not Environment.debug_mode
     runner.run_tasks()
     port = 3000 if Environment.debug_mode else 5000
     http_server = HTTPServer(WSGIContainer(app), no_keep_alive=True)
