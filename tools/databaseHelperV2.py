@@ -3,7 +3,7 @@ import utils
 from datetime import datetime
 from model.databaseModelV2 import Device, ClosedGroup
 from model.pushNotificationStats import PushNotificationStats
-from utils import TaskQueue, Singleton
+from utils import TaskQueue, Singleton, DeviceType
 from tools.lokiLogger import LokiLogger
 
 
@@ -200,9 +200,9 @@ class DatabaseHelperV2(metaclass=Singleton):
             if len(device.tokens) > 0:
                 total += 1
                 for token in device.tokens:
-                    if utils.is_ios_device_token(token):
+                    if token.device_type == DeviceType.iOS:
                         ios += 1
-                    else:
+                    elif token.device_type == DeviceType.Android or token.device_type == DeviceType.Huawei:
                         android += 1
         return ios, android, total
 
