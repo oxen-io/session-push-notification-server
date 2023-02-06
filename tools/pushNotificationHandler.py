@@ -53,8 +53,6 @@ class PushNotificationHelperV2(metaclass=Singleton):
             self.logger.info(f"New session id registered {session_id}.")
             device = Device()
             device.session_id = session_id
-        else:
-            self.logger.info(f"{session_id} registered a new device.")
 
         # When an existed session id adds a new device
         device.add_token(Device.Token(device_token, device_type))
