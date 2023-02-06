@@ -1,4 +1,5 @@
 from utils import DeviceType, is_ios_device_token
+from tools.lokiLogger import LokiLogger
 
 
 class Device:
@@ -45,11 +46,20 @@ class Device:
     def to_database_rows(self):
         rows = []
         for token in self.tokens:
+            if isinstance(token, str):
+                LokiLogger().logger.error("Token is String.")
+                continue
+            if isinstance(token.device_type, str):
+                LokiLogger().logger.error("Device_Type is String.")
+                continue
             rows.append((self.session_id, token.value, token.device_type.value))
         self.needs_to_be_updated = False
         return rows
 
     def add_token(self, token):
+        if isinstance(token, str):
+            LokiLogger().logger.error("Adding string token.\n")
+            return
         if token not in self.tokens:
             self.tokens.add(token)
             self.needs_to_be_updated = True

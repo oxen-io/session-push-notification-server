@@ -76,7 +76,8 @@ class DatabaseHelperV2(metaclass=Singleton):
         device_token_rows = cursor.fetchall()
         for row in device_token_rows:
             session_id = row[0]
-            token = Device.Token(row[1], row[2])
+            device_type = DeviceType(row[2]) if row[2] is not None else None
+            token = Device.Token(row[1], device_type)
             device = self.get_device(session_id) or Device(session_id)
             device.tokens.add(token)  # Won't trigger needs_to_be_updated
             self.device_cache[session_id] = device
@@ -115,6 +116,7 @@ class DatabaseHelperV2(metaclass=Singleton):
             cursor.executemany(query, [(row[0],) for row in rows_to_update])
             statement = SQL.NEW.format(table, ','.join('?' * value_count))
             cursor.executemany(statement, rows_to_update)
+            self.logger.info(f"{len(rows_to_update)} rows have been updated.")
 
         try:
             # Update device token into database
