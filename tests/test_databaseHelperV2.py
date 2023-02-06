@@ -1,8 +1,8 @@
 import unittest
-from databaseModelV2 import *
+from model.databaseModelV2 import *
+from tools.databaseHelperV2 import DatabaseHelperV2
 from test_const import *
-from server import database_helper
-from pushNotificationStats import *
+from model.pushNotificationStats import *
 
 
 tests_cases = ['populate_cache',
@@ -12,7 +12,7 @@ tests_cases = ['populate_cache',
 
 class DatabaseHelperV2Tests(unittest.TestCase):
     def setUp(self):
-        self.databaseHelper = database_helper
+        self.databaseHelper = DatabaseHelperV2()
 
     def tearDown(self):
         pass
@@ -27,7 +27,7 @@ class DatabaseHelperV2Tests(unittest.TestCase):
     def test_1_flush(self):
         test_device = Device()
         test_device.session_id = TEST_SESSION_ID
-        test_device.add_token(TEST_TOKEN_0)
+        test_device.add_token(Device.Token(TEST_TOKEN_0, DeviceType.Unknown))
         test_device.save_to_cache(self.databaseHelper)
 
         test_device_in_cache = self.databaseHelper.get_device(TEST_SESSION_ID)
@@ -65,10 +65,10 @@ class DatabaseHelperV2Tests(unittest.TestCase):
         stats_data.increment_deduplicated_one_on_one_message(1)
 
         statistics_data = self.databaseHelper.get_stats_data(None, None)
-        total_columns_before = len(statistics_data[DATA])
+        total_columns_before = len(statistics_data[PushNotificationStats.ResponseKey.DATA])
         self.databaseHelper.store_stats_data(stats_data)
         statistics_data = self.databaseHelper.get_stats_data(None, None)
-        total_columns_after = len(statistics_data[DATA])
+        total_columns_after = len(statistics_data[PushNotificationStats.ResponseKey.DATA])
 
         self.assertEqual(total_columns_before + 1, total_columns_after)
 
