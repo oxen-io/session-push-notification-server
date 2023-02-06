@@ -19,12 +19,12 @@ class ObserveTask(BaseTask):
 
     async def task(self):
         while self.is_running:
-            await asyncio.sleep(5 * 60)
+            await asyncio.sleep(10 * 60)
             if self.database_helper.last_flush:
                 now = datetime.now()
                 time_diff = now - self.database_helper.last_flush
-                if time_diff.total_seconds() > 300:
-                    self.observer.push_warning('Not synced to DB for more than 5 min. Process might be crashed.')
+                if time_diff.total_seconds() > 600:
+                    self.observer.push_warning('Not synced to DB for more than 10 min. Process might be crashed.')
                 self.check_push_notification()
 
     def check_push_notification(self):
