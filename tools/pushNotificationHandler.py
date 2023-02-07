@@ -1,3 +1,5 @@
+import asyncio
+
 from utils import *
 from model.pushNotificationStats import PushNotificationStats
 from model.databaseModelV2 import *
@@ -157,7 +159,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 if Environment.debug_mode:
                     self.logger.info(f'Ignore message to {recipient}.')
         try:
-            await self.execute_push_ios(notifications_ios)
+            asyncio.ensure_future(self.execute_push_ios(notifications_ios))
             self.execute_push_android(notifications_android)
             self.execute_push_huawei(notifications_huawei)
         except Exception as e:
@@ -204,18 +206,22 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 self.logger.exception(e)
 
     async def execute_push_ios(self, notifications):
+
+        async def send_request(notification):
+            response = await self.apns.send_notification(notification)
+            if not response.is_successful:
+                self.handle_fail_result(notification.device_token, (response.description, ''))
+            else:
+                self.push_fails[notification.device_token] = 0
+
         if len(notifications) == 0:
             return
         self.logger.info(f"Push {len(notifications)} notifications for iOS.")
         self.stats_data.increment_ios_pn(len(notifications))
         if self.apns is None:
             self.apns = APNs(client_cert=Environment.CERT_FILE, use_sandbox=Environment.debug_mode, topic='com.loki-project.loki-messenger')
-        for notification in notifications:
-            response = await self.apns.send_notification(notification)
-            if not response.is_successful:
-                self.handle_fail_result(notification.device_token, (response.description, ''))
-            else:
-                self.push_fails[notification.device_token] = 0
+        send_requests = [send_request(notification) for notification in notifications]
+        await asyncio.wait(send_requests)
 
     # Error handler #
     def handle_fail_result(self, key, result):
@@ -224,7 +230,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
         else:
             self.push_fails[key] = 1
 
-        if self.push_fails[key] > 5:
+        if self.push_fails[key] > 3:
             self.remove_device_token(key)
         if isinstance(result, tuple):
             reason, info = result

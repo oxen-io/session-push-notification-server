@@ -6,7 +6,6 @@ from tools.lokiLogger import LokiLogger
 
 class TaskRunner:
     def __init__(self):
-        self.logger = LokiLogger().logger
         self.tasks = [PushNotificationTask(), SyncDatabaseTask(), ObserveTask()]
 
     def run_tasks(self):
