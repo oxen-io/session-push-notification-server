@@ -9,8 +9,8 @@ from tools.lokiLogger import LokiLogger
 
 class DatabaseHelperV2(metaclass=Singleton):
     def __init__(self):
-        self.database = 'session_pn_server.db'
-        self.backup_database = 'session_pn_server_backup.db'
+        self.database = '../session_pn_server.db'
+        self.backup_database = '../session_pn_server_backup.db'
         self.logger = LokiLogger().logger
         self.last_backup = datetime.now()
         self.last_flush = None
