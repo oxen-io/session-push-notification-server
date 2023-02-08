@@ -102,6 +102,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
             raise e
 
     async def send_push_notification(self):
+        self.logger.info("Start sending push notifications...")
 
         def generate_notifications(session_ids):
 
