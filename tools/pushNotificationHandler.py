@@ -179,13 +179,13 @@ class PushNotificationHelperV2(metaclass=Singleton):
                     self.logger.info(f'Ignore message to {recipient}.')
         try:
             asyncio.ensure_future(self.execute_push_ios(notifications_ios))
-            self.execute_push_android(notifications_android)
-            self.execute_push_huawei(notifications_huawei)
+            asyncio.ensure_future(self.execute_push_android(notifications_android))
+            asyncio.ensure_future(self.execute_push_huawei(notifications_huawei))
         except Exception as e:
             self.logger.info('Something wrong happened when try to push notifications.')
             self.logger.exception(e)
 
-    def execute_push_android(self, notifications):
+    async def execute_push_android(self, notifications):
         if len(notifications) == 0:
             return
         self.logger.info(f"Push {len(notifications)} notifications for Android.")
@@ -209,7 +209,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 else:
                     self.push_fails[token] = 0
 
-    def execute_push_huawei(self, notifications):
+    async def execute_push_huawei(self, notifications):
         if len(notifications) == 0:
             return
         self.logger.info(f"Push {len(notifications)} notifications for Huawei.")
@@ -227,11 +227,14 @@ class PushNotificationHelperV2(metaclass=Singleton):
     async def execute_push_ios(self, notifications):
 
         async def send_request(notification):
-            response = await self.apns.send_notification(notification)
-            if not response.is_successful:
-                self.handle_fail_result(notification.device_token, (response.description, ''))
-            else:
-                self.push_fails[notification.device_token] = 0
+            try:
+                response = await self.apns.send_notification(notification)
+                if not response.is_successful:
+                    self.handle_fail_result(notification.device_token, (response.description, ''))
+                else:
+                    self.push_fails[notification.device_token] = 0
+            except Exception as e:
+                self.logger.exception(e)
 
         if len(notifications) == 0:
             return
