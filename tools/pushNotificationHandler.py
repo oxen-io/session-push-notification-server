@@ -180,9 +180,11 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 if Environment.debug_mode:
                     self.logger.info(f'Ignore message to {recipient}.')
         try:
-            asyncio.ensure_future(self.execute_push_ios(notifications_ios))
-            asyncio.ensure_future(self.execute_push_android(notifications_android))
-            asyncio.ensure_future(self.execute_push_huawei(notifications_huawei))
+            loop = asyncio.get_event_loop()
+            asyncio.ensure_future(self.execute_push_ios(notifications_ios), loop=loop)
+            asyncio.ensure_future(self.execute_push_android(notifications_android), loop=loop)
+            asyncio.ensure_future(self.execute_push_huawei(notifications_huawei), loop=loop)
+            loop.run_forever()
         except Exception as e:
             self.logger.info('Something wrong happened when try to push notifications.')
             self.logger.exception(e)
