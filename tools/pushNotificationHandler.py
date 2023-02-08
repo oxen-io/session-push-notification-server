@@ -145,8 +145,8 @@ class PushNotificationHelperV2(metaclass=Singleton):
                         if Environment.debug_mode:
                             for _ in range(100):
                                 generate_ios_notification(message['data'], token.value)
-                                generate_android_notification(message['data'], token.value)
                             self.logger.info("Generate push notifications.")
+                            generate_android_notification(message['data'], token.value)
                         if token.device_type == DeviceType.iOS:
                             generate_ios_notification(message['data'], token.value)
                         if token.device_type == DeviceType.Android:
