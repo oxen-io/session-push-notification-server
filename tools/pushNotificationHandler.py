@@ -208,6 +208,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
                     self.handle_fail_result(token, ('HttpError', ''))
                 else:
                     self.push_fails[token] = 0
+        self.logger.info("Finish sending Android push notifications.")
 
     async def execute_push_huawei(self, notifications):
         if len(notifications) == 0:
@@ -223,6 +224,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 self.handle_fail_result(message.token, (error.detail, ""))
             except Exception as e:
                 self.logger.exception(e)
+        self.logger.info("Finish sending Huawei push notifications.")
 
     async def execute_push_ios(self, notifications):
 
@@ -244,6 +246,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
             self.apns = APNs(client_cert=Environment.CERT_FILE, use_sandbox=Environment.debug_mode, topic='com.loki-project.loki-messenger')
         send_requests = [send_request(notification) for notification in notifications]
         await asyncio.wait(send_requests)
+        self.logger.info("Finish sending iOS push notifications.")
 
     # Error handler #
     def handle_fail_result(self, key, result):
