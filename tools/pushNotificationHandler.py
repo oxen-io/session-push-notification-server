@@ -182,13 +182,13 @@ class PushNotificationHelperV2(metaclass=Singleton):
             self.logger.info("Add coroutines to loop.")
             loop = asyncio.get_event_loop()
             asyncio.ensure_future(self.execute_push_ios(notifications_ios), loop=loop)
-            asyncio.ensure_future(self.execute_push_android(notifications_android), loop=loop)
-            asyncio.ensure_future(self.execute_push_huawei(notifications_huawei), loop=loop)
+            self.execute_push_android(notifications_android)
+            self.execute_push_huawei(notifications_huawei)
         except Exception as e:
             self.logger.info('Something wrong happened when try to push notifications.')
             self.logger.exception(e)
 
-    async def execute_push_android(self, notifications):
+    def execute_push_android(self, notifications):
         if len(notifications) == 0:
             return
         self.logger.info(f"Push {len(notifications)} notifications for Android.")
@@ -213,7 +213,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
                     self.push_fails[token] = 0
         self.logger.info("Finish sending Android push notifications.")
 
-    async def execute_push_huawei(self, notifications):
+    def execute_push_huawei(self, notifications):
         if len(notifications) == 0:
             return
         self.logger.info(f"Push {len(notifications)} notifications for Huawei.")
