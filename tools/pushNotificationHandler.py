@@ -142,11 +142,6 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 device_for_push = self.database_helper.get_device(session_id)
                 if device_for_push:
                     for token in device_for_push.tokens:
-                        if Environment.debug_mode:
-                            for _ in range(100):
-                                generate_ios_notification(message['data'], token.value)
-                            self.logger.info("Generate push notifications.")
-                            generate_android_notification(message['data'], token.value)
                         if token.device_type == DeviceType.iOS:
                             generate_ios_notification(message['data'], token.value)
                         if token.device_type == DeviceType.Android:
@@ -155,9 +150,9 @@ class PushNotificationHelperV2(metaclass=Singleton):
                             generate_huawei_notification(message['data'], token.value)
         if self.message_queue.empty():
             return
-        # Get at most 1000 messages every 0.5 seconds
+        # Get at most 300 messages every 0.5 seconds
         messages_wait_to_push = []
-        while (not self.message_queue.empty()) and (len(messages_wait_to_push) < 1000):
+        while (not self.message_queue.empty()) and (len(messages_wait_to_push) < 300):
             messages_wait_to_push.append(self.message_queue.get())
 
         self.stats_data.increment_total_message(len(messages_wait_to_push))
@@ -179,10 +174,8 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 if Environment.debug_mode:
                     self.logger.info(f'Ignore message to {recipient}.')
         try:
-            self.logger.info("Add coroutines to loop.")
             loop = asyncio.get_event_loop()
-            future = asyncio.ensure_future(self.execute_push_ios(notifications_ios), loop=loop)
-            loop.run_until_complete(future)
+            asyncio.ensure_future(self.execute_push_ios(notifications_ios), loop=loop)
             self.execute_push_android(notifications_android)
             self.execute_push_huawei(notifications_huawei)
         except Exception as e:
@@ -212,7 +205,6 @@ class PushNotificationHelperV2(metaclass=Singleton):
                     self.handle_fail_result(token, ('HttpError', ''))
                 else:
                     self.push_fails[token] = 0
-        self.logger.info("Finish sending Android push notifications.")
 
     def execute_push_huawei(self, notifications):
         if len(notifications) == 0:
@@ -228,7 +220,6 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 self.handle_fail_result(message.token, (error.detail, ""))
             except Exception as e:
                 self.logger.exception(e)
-        self.logger.info("Finish sending Huawei push notifications.")
 
     async def execute_push_ios(self, notifications):
 
@@ -242,7 +233,6 @@ class PushNotificationHelperV2(metaclass=Singleton):
             except Exception as e:
                 self.logger.exception(e)
 
-        self.logger.info(f"Running execute_push_ios(notifications[{len(notifications)}])")
         if len(notifications) == 0:
             return
         self.logger.info(f"Push {len(notifications)} notifications for iOS.")
@@ -251,7 +241,6 @@ class PushNotificationHelperV2(metaclass=Singleton):
             self.apns = APNs(client_cert=Environment.CERT_FILE, use_sandbox=Environment.debug_mode, topic='com.loki-project.loki-messenger')
         send_requests = [send_request(notification) for notification in notifications]
         await asyncio.wait(send_requests)
-        self.logger.info("Finish sending iOS push notifications.")
 
     # Error handler #
     def handle_fail_result(self, key, result):
