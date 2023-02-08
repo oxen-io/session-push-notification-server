@@ -102,7 +102,6 @@ class PushNotificationHelperV2(metaclass=Singleton):
             raise e
 
     async def send_push_notification(self):
-        self.logger.info("Start sending push notifications...")
 
         def generate_notifications(session_ids):
 
@@ -155,7 +154,6 @@ class PushNotificationHelperV2(metaclass=Singleton):
                         if token.device_type == DeviceType.Huawei:
                             generate_huawei_notification(message['data'], token.value)
         if self.message_queue.empty():
-            self.logger.info("Message queue is empty.")
             return
         # Get at most 1000 messages every 0.5 seconds
         messages_wait_to_push = []
