@@ -144,9 +144,10 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 if device_for_push:
                     for token in device_for_push.tokens:
                         if Environment.debug_mode:
-                            for _ in range(300):
+                            for _ in range(100):
                                 generate_ios_notification(message['data'], token.value)
                                 generate_android_notification(message['data'], token.value)
+                                self.logger.info("Generate push notifications.")
                         if token.device_type == DeviceType.iOS:
                             generate_ios_notification(message['data'], token.value)
                         if token.device_type == DeviceType.Android:
@@ -180,11 +181,11 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 if Environment.debug_mode:
                     self.logger.info(f'Ignore message to {recipient}.')
         try:
+            self.logger.info("Add coroutines to loop.")
             loop = asyncio.get_event_loop()
             asyncio.ensure_future(self.execute_push_ios(notifications_ios), loop=loop)
             asyncio.ensure_future(self.execute_push_android(notifications_android), loop=loop)
             asyncio.ensure_future(self.execute_push_huawei(notifications_huawei), loop=loop)
-            loop.run_forever()
         except Exception as e:
             self.logger.info('Something wrong happened when try to push notifications.')
             self.logger.exception(e)
