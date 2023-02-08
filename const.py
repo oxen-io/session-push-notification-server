@@ -50,5 +50,5 @@ class Environment:
     HUAWEI_APP_ID = "107146885"
     HUAWEI_APP_SECRET = "40da17ca27eab7565da0ce381bd6cf7690f9c442322b3939b4ea89dcec3a0602"
 
-    debug_mode = True
+    debug_mode = False
 
