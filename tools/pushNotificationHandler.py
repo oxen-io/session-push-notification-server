@@ -1,3 +1,6 @@
+import asyncio
+import time
+
 from utils import *
 from model.pushNotificationStats import PushNotificationStats
 from model.databaseModelV2 import *
@@ -25,6 +28,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
         push_admin.initialize_app(Environment.HUAWEI_APP_ID, Environment.HUAWEI_APP_SECRET)
 
         self.push_fails = {}
+        self.latest_activity_timestamp = {}
         self.stats_data = PushNotificationStats()
 
         self.logger = LokiLogger().logger
@@ -45,6 +49,8 @@ class PushNotificationHelperV2(metaclass=Singleton):
         return None
 
     def register(self, device_token, session_id, device_type):
+        self.latest_activity_timestamp[session_id] = time.time()
+
         self.remove_device_token(device_token)
 
         device = self.database_helper.get_device(session_id)
@@ -53,8 +59,6 @@ class PushNotificationHelperV2(metaclass=Singleton):
             self.logger.info(f"New session id registered {session_id}.")
             device = Device()
             device.session_id = session_id
-        else:
-            self.logger.info(f"{session_id} registered a new device.")
 
         # When an existed session id adds a new device
         device.add_token(Device.Token(device_token, device_type))
@@ -66,6 +70,8 @@ class PushNotificationHelperV2(metaclass=Singleton):
         return session_id
 
     def subscribe_closed_group(self, closed_group_id, session_id):
+        self.latest_activity_timestamp[session_id] = time.time()
+
         closed_group = self.database_helper.get_closed_group(closed_group_id)
         if closed_group is None:
             closed_group = ClosedGroup()
@@ -74,6 +80,8 @@ class PushNotificationHelperV2(metaclass=Singleton):
         closed_group.save_to_cache(self.database_helper)
 
     def unsubscribe_closed_group(self, closed_group_id, session_id):
+        self.latest_activity_timestamp[session_id] = time.time()
+
         closed_group = self.database_helper.get_closed_group(closed_group_id)
         if closed_group:
             closed_group.remove_member(session_id)
@@ -96,48 +104,55 @@ class PushNotificationHelperV2(metaclass=Singleton):
     async def send_push_notification(self):
 
         def generate_notifications(session_ids):
+
+            def generate_ios_notification(encrypted_data, device_token):
+                alert = {'title': 'Session',
+                         'body': 'You\'ve got a new message'}
+                aps = {'alert': alert,
+                       'badge': 1,
+                       'sound': 'default',
+                       'mutable-content': 1,
+                       'category': 'SECRET'}
+                payload = {'aps': aps,
+                           'ENCRYPTED_DATA': encrypted_data,
+                           'remote': 1}
+                request = NotificationRequest(
+                    device_token=device_token,
+                    message=payload,
+                    priority=PRIORITY_HIGH,
+                    push_type=PushType.ALERT
+                )
+                notifications_ios.append(request)
+
+            def generate_android_notification(encrypted_data, device_token):
+                notification = messaging.Message(data={'ENCRYPTED_DATA': encrypted_data},
+                                                 token=device_token,
+                                                 android=messaging.AndroidConfig(priority='high'))
+                notifications_android.append(notification)
+
+            def generate_huawei_notification(encrypted_data, device_token):
+                notification = huawei_messaging.Message(
+                    data=encrypted_data,
+                    token=[device_token],
+                    android=huawei_messaging.AndroidConfig(urgency=huawei_messaging.AndroidConfig.HIGH_PRIORITY)
+                )
+                notifications_huawei.append(notification)
+
             for session_id in session_ids:
                 device_for_push = self.database_helper.get_device(session_id)
                 if device_for_push:
                     for token in device_for_push.tokens:
                         if token.device_type == DeviceType.iOS:
-                            alert = {'title': 'Session',
-                                     'body': 'You\'ve got a new message'}
-                            aps = {'alert': alert,
-                                   'badge': 1,
-                                   'sound': 'default',
-                                   'mutable-content': 1,
-                                   'category': 'SECRET'}
-                            payload = {'aps': aps,
-                                       'ENCRYPTED_DATA': message['data'],
-                                       'remote': 1}
-                            request = NotificationRequest(
-                                device_token=token.value,
-                                message=payload,
-                                priority=PRIORITY_HIGH,
-                                push_type=PushType.ALERT
-                            )
-                            notifications_ios.append(request)
-
+                            generate_ios_notification(message['data'], token.value)
                         if token.device_type == DeviceType.Android:
-                            notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
-                                                             token=token.value,
-                                                             android=messaging.AndroidConfig(priority='high'))
-                            notifications_android.append(notification)
-
+                            generate_android_notification(message['data'], token.value)
                         if token.device_type == DeviceType.Huawei:
-                            notification = huawei_messaging.Message(
-                                data=message['data'],
-                                token=[token.value],
-                                android=huawei_messaging.AndroidConfig(urgency=huawei_messaging.AndroidConfig.HIGH_PRIORITY)
-                            )
-                            notifications_huawei.append(notification)
-
+                            generate_huawei_notification(message['data'], token.value)
         if self.message_queue.empty():
             return
-        # Get at most 1000 messages every 0.5 seconds
+        # Get at most 300 messages every 0.5 seconds
         messages_wait_to_push = []
-        while not self.message_queue.empty() or len(messages_wait_to_push) > 1000:
+        while (not self.message_queue.empty()) and (len(messages_wait_to_push) < 300):
             messages_wait_to_push.append(self.message_queue.get())
 
         self.stats_data.increment_total_message(len(messages_wait_to_push))
@@ -159,7 +174,8 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 if Environment.debug_mode:
                     self.logger.info(f'Ignore message to {recipient}.')
         try:
-            await self.execute_push_ios(notifications_ios)
+            loop = asyncio.get_event_loop()
+            asyncio.ensure_future(self.execute_push_ios(notifications_ios), loop=loop)
             self.execute_push_android(notifications_android)
             self.execute_push_huawei(notifications_huawei)
         except Exception as e:
@@ -206,18 +222,25 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 self.logger.exception(e)
 
     async def execute_push_ios(self, notifications):
+
+        async def send_request(notification):
+            try:
+                response = await self.apns.send_notification(notification)
+                if not response.is_successful:
+                    self.handle_fail_result(notification.device_token, (response.description, ''))
+                else:
+                    self.push_fails[notification.device_token] = 0
+            except Exception as e:
+                self.logger.exception(e)
+
         if len(notifications) == 0:
             return
         self.logger.info(f"Push {len(notifications)} notifications for iOS.")
         self.stats_data.increment_ios_pn(len(notifications))
         if self.apns is None:
             self.apns = APNs(client_cert=Environment.CERT_FILE, use_sandbox=Environment.debug_mode, topic='com.loki-project.loki-messenger')
-        for notification in notifications:
-            response = await self.apns.send_notification(notification)
-            if not response.is_successful:
-                self.handle_fail_result(notification.device_token, (response.description, ''))
-            else:
-                self.push_fails[notification.device_token] = 0
+        send_requests = [send_request(notification) for notification in notifications]
+        await asyncio.wait(send_requests)
 
     # Error handler #
     def handle_fail_result(self, key, result):
@@ -226,7 +249,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
         else:
             self.push_fails[key] = 1
 
-        if self.push_fails[key] > 5:
+        if self.push_fails[key] > 3:
             self.remove_device_token(key)
         if isinstance(result, tuple):
             reason, info = result

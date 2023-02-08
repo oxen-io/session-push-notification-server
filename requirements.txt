@@ -16,3 +16,4 @@ setuptools~=41.4.0
 telepot~=12.7
 Werkzeug~=2.1.2
 aioapns==2.1
+uvloop

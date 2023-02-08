@@ -72,6 +72,17 @@ class DatabaseHelperV2Tests(unittest.TestCase):
 
         self.assertEqual(total_columns_before + 1, total_columns_after)
 
+    def test_3_adding_duplicated_token(self):
+        test_device = Device()
+        test_device.session_id = TEST_SESSION_ID
+        test_device.add_token(Device.Token(TEST_TOKEN_0, DeviceType.Unknown))
+        test_device.save_to_cache(self.databaseHelper)
+        self.databaseHelper.flush()
+
+        test_device_in_cache = self.databaseHelper.get_device(TEST_SESSION_ID)
+        test_device_in_cache.add_token(Device.Token(TEST_TOKEN_0, DeviceType.Unknown))
+        self.assertFalse(test_device_in_cache.needs_to_be_updated)
+
 
 if __name__ == '__main__':
     unittest.main()

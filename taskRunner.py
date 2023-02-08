@@ -1,13 +1,12 @@
 from tasks.observeTask import ObserveTask
 from tasks.syncDatabaseTask import SyncDatabaseTask
 from tasks.pushNotificationTask import PushNotificationTask
-from tools.lokiLogger import LokiLogger
+from tasks.cleanDatabaseTask import CleanDatabaseTask
 
 
 class TaskRunner:
     def __init__(self):
-        self.logger = LokiLogger().logger
-        self.tasks = [PushNotificationTask(), SyncDatabaseTask(), ObserveTask()]
+        self.tasks = [PushNotificationTask(), SyncDatabaseTask(), ObserveTask(), CleanDatabaseTask()]
 
     def run_tasks(self):
         for task in self.tasks:
