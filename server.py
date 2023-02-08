@@ -4,6 +4,8 @@ import resource
 import json
 import http
 import logging
+import asyncio
+import uvloop
 
 from flask import Flask, request, jsonify, abort
 from flask_httpauth import HTTPBasicAuth
@@ -22,6 +24,7 @@ from crypto import parse_junk
 
 resource.setrlimit(resource.RLIMIT_NOFILE, (65536, 65536))
 urllib3.disable_warnings()
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 
 def handle_exit(sig, frame):

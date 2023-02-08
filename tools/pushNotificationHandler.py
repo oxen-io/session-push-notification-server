@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 from utils import *
 from model.pushNotificationStats import PushNotificationStats
@@ -27,6 +28,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
         push_admin.initialize_app(Environment.HUAWEI_APP_ID, Environment.HUAWEI_APP_SECRET)
 
         self.push_fails = {}
+        self.latest_activity_timestamp = {}
         self.stats_data = PushNotificationStats()
 
         self.logger = LokiLogger().logger
@@ -47,6 +49,8 @@ class PushNotificationHelperV2(metaclass=Singleton):
         return None
 
     def register(self, device_token, session_id, device_type):
+        self.latest_activity_timestamp[session_id] = time.time()
+
         self.remove_device_token(device_token)
 
         device = self.database_helper.get_device(session_id)
@@ -66,6 +70,8 @@ class PushNotificationHelperV2(metaclass=Singleton):
         return session_id
 
     def subscribe_closed_group(self, closed_group_id, session_id):
+        self.latest_activity_timestamp[session_id] = time.time()
+
         closed_group = self.database_helper.get_closed_group(closed_group_id)
         if closed_group is None:
             closed_group = ClosedGroup()
@@ -74,6 +80,8 @@ class PushNotificationHelperV2(metaclass=Singleton):
         closed_group.save_to_cache(self.database_helper)
 
     def unsubscribe_closed_group(self, closed_group_id, session_id):
+        self.latest_activity_timestamp[session_id] = time.time()
+
         closed_group = self.database_helper.get_closed_group(closed_group_id)
         if closed_group:
             closed_group.remove_member(session_id)
