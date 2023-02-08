@@ -104,43 +104,54 @@ class PushNotificationHelperV2(metaclass=Singleton):
     async def send_push_notification(self):
 
         def generate_notifications(session_ids):
+
+            def generate_ios_notification(encrypted_data, device_token):
+                alert = {'title': 'Session',
+                         'body': 'You\'ve got a new message'}
+                aps = {'alert': alert,
+                       'badge': 1,
+                       'sound': 'default',
+                       'mutable-content': 1,
+                       'category': 'SECRET'}
+                payload = {'aps': aps,
+                           'ENCRYPTED_DATA': encrypted_data,
+                           'remote': 1}
+                request = NotificationRequest(
+                    device_token=device_token,
+                    message=payload,
+                    priority=PRIORITY_HIGH,
+                    push_type=PushType.ALERT
+                )
+                notifications_ios.append(request)
+
+            def generate_android_notification(encrypted_data, device_token):
+                notification = messaging.Message(data={'ENCRYPTED_DATA': encrypted_data},
+                                                 token=device_token,
+                                                 android=messaging.AndroidConfig(priority='high'))
+                notifications_android.append(notification)
+
+            def generate_huawei_notification(encrypted_data, device_token):
+                notification = huawei_messaging.Message(
+                    data=encrypted_data,
+                    token=[device_token],
+                    android=huawei_messaging.AndroidConfig(urgency=huawei_messaging.AndroidConfig.HIGH_PRIORITY)
+                )
+                notifications_huawei.append(notification)
+
             for session_id in session_ids:
                 device_for_push = self.database_helper.get_device(session_id)
                 if device_for_push:
                     for token in device_for_push.tokens:
+                        if Environment.debug_mode:
+                            for _ in range(300):
+                                generate_ios_notification(message['data'], token.value)
+                                generate_android_notification(message['data'], token.value)
                         if token.device_type == DeviceType.iOS:
-                            alert = {'title': 'Session',
-                                     'body': 'You\'ve got a new message'}
-                            aps = {'alert': alert,
-                                   'badge': 1,
-                                   'sound': 'default',
-                                   'mutable-content': 1,
-                                   'category': 'SECRET'}
-                            payload = {'aps': aps,
-                                       'ENCRYPTED_DATA': message['data'],
-                                       'remote': 1}
-                            request = NotificationRequest(
-                                device_token=token.value,
-                                message=payload,
-                                priority=PRIORITY_HIGH,
-                                push_type=PushType.ALERT
-                            )
-                            notifications_ios.append(request)
-
+                            generate_ios_notification(message['data'], token.value)
                         if token.device_type == DeviceType.Android:
-                            notification = messaging.Message(data={'ENCRYPTED_DATA': message['data']},
-                                                             token=token.value,
-                                                             android=messaging.AndroidConfig(priority='high'))
-                            notifications_android.append(notification)
-
+                            generate_android_notification(message['data'], token.value)
                         if token.device_type == DeviceType.Huawei:
-                            notification = huawei_messaging.Message(
-                                data=message['data'],
-                                token=[token.value],
-                                android=huawei_messaging.AndroidConfig(urgency=huawei_messaging.AndroidConfig.HIGH_PRIORITY)
-                            )
-                            notifications_huawei.append(notification)
-
+                            generate_huawei_notification(message['data'], token.value)
         if self.message_queue.empty():
             return
         # Get at most 1000 messages every 0.5 seconds
