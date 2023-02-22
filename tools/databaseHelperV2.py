@@ -109,7 +109,8 @@ class DatabaseHelperV2(metaclass=Singleton):
 
         def batch_update(table, key, cache, value_count):
             rows_to_update = list()
-            for item in cache.values():
+            for k in list(cache):
+                item = cache[k]
                 if item.needs_to_be_updated:
                     rows_to_update += item.to_database_rows()
             query = SQL.DELETE.format(table) + f'WHERE {key} = ?'
