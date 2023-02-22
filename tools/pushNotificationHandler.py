@@ -167,6 +167,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
                 self.stats_data.increment_deduplicated_one_on_one_message(1)
                 generate_notifications([recipient])
             elif closed_group:
+                self.logger.info(f'New closed group message notification.')
                 self.stats_data.increment_closed_group_message(1)
                 generate_notifications(closed_group.members)
             else:
