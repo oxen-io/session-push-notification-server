@@ -17,17 +17,24 @@ class ObserveTask(BaseTask):
         self.last_ios_pn_number = 0
         self.last_android_pn_number = 0
 
+        self.last_check = datetime.now()
+
     async def task(self):
         while self.is_running:
-            await asyncio.sleep(10 * 60)
-            if self.database_helper.last_flush:
-                now = datetime.now()
-                time_diff = now - self.database_helper.last_flush
-                if time_diff.total_seconds() > 600:
-                    self.observer.push_warning('Not synced to DB for more than 10 min. Process might be crashed.')
-                self.check_push_notification()
+            await asyncio.sleep(1)
+            now = datetime.now()
+            time_diff = now - self.database_helper.last_flush
+            if time_diff.total_seconds() > 600:
+                self.observer.push_warning('Not synced to DB for more than 10 min. Process might be crashed.')
+            self.check_push_notification()
 
     def check_push_notification(self):
+        now = datetime.now()
+        if (now - self.last_check).total_seconds() < 600:
+            return
+
+        self.last_check = now
+
         if self.stats_data.notification_counter_ios == self.last_ios_pn_number and not Environment.debug_mode:
             self.observer.push_warning('No new iOS PN during the last period. iOS PN might be crashed.')
 

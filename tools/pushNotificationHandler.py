@@ -51,7 +51,12 @@ class PushNotificationHelperV2(metaclass=Singleton):
     def register(self, device_token, session_id, device_type):
         self.latest_activity_timestamp[session_id] = time.time()
 
-        self.remove_device_token(device_token)
+        if device_token in self.database_helper.token_device_mapping.keys():
+            device = self.database_helper.token_device_mapping[device_token]
+            if device.session_id == session_id:
+                return
+            else:
+                self.remove_device_token(device_token)
 
         device = self.database_helper.get_device(session_id)
         # When there is no record for either the session id or the token
@@ -160,7 +165,10 @@ class PushNotificationHelperV2(metaclass=Singleton):
         notifications_android = []
         notifications_huawei = []
         for message in messages_wait_to_push:
-            recipient = message['send_to']
+            if len(message[HTTP.NotificationRequest.DATA]) > 4096:
+                self.logger.info(f"Message too large. The data size is {len(message[HTTP.NotificationRequest.DATA])}.")
+                continue
+            recipient = message[HTTP.NotificationRequest.SEND_TO]
             device = self.database_helper.get_device(recipient)
             closed_group = self.database_helper.get_closed_group(recipient)
             if device:
