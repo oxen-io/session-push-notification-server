@@ -13,7 +13,7 @@ class DatabaseHelperV2(metaclass=Singleton):
         self.backup_database = '../session_pn_server_backup.db'
         self.logger = LokiLogger().logger
         self.last_backup = datetime.now()
-        self.last_flush = None
+        self.last_flush = datetime.now()
         self.task_queue = TaskQueue()
         self.device_cache = {}  # {session_id: Device}
         self.token_device_mapping = {}  # {token: Device}
@@ -98,9 +98,6 @@ class DatabaseHelperV2(metaclass=Singleton):
         db_connection.close()
 
     def should_flush(self):
-        if self.last_flush is None:
-            return False
-        
         now = datetime.now()
         time_diff = now - self.last_flush
         return time_diff.total_seconds() >= 3 * 60
