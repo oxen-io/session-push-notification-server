@@ -165,7 +165,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
         notifications_android = []
         notifications_huawei = []
         for message in messages_wait_to_push:
-            if len(message[HTTP.NotificationRequest.DATA]) > 4096:
+            if len(message[HTTP.NotificationRequest.DATA]) > 10 * 1024:
                 self.logger.info(f"Message too large. The data size is {len(message[HTTP.NotificationRequest.DATA])}.")
                 continue
             recipient = message[HTTP.NotificationRequest.SEND_TO]
