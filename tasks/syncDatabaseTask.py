@@ -21,8 +21,8 @@ class SyncDatabaseTask(BaseTask):
                     # Check should back up database every second
                     self.back_up_data_if_needed()
                     self.create_new_stats_data_entry_if_needed()
-                # Flush cache to database every 3 minutes
-                self.database_helper.flush_async()
+                    # Flush cache to database when the last flush is done
+                    self.database_helper.flush_async()
                 # Update stats data every 3 minutes
                 self.persist_stats_data()
             except Exception as e:

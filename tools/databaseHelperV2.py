@@ -97,8 +97,13 @@ class DatabaseHelperV2(metaclass=Singleton):
         cursor.close()
         db_connection.close()
 
+    def should_flush(self):
+        now = datetime.now()
+        time_diff = now - self.last_flush
+        return time_diff.total_seconds() >= 3 * 60
+
     def flush_async(self):
-        if self.task_queue.empty():
+        if self.should_flush() and self.task_queue.empty():
             self.task_queue.add_task(self.flush)
 
     def flush(self):
