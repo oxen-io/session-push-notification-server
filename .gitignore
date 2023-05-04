@@ -115,9 +115,14 @@ venv.bak/
 
 # Logs
 apns.log*
+spns.log*
 
 # Database file
 *_db*
 *.db*
+
+# Runtime config and keys:
+/spns.ini
+/*_x25519
 
 generate_cert.txt

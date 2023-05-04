@@ -1,0 +1,90 @@
+[db]
+
+# The postgresql database URL
+url = postgresql:///spns
+
+[log]
+
+# Log level
+level = INFO
+
+[hivemind]
+
+# The socket we listen on, that other parts of the PN service use to communicate with the central "hivemind" process
+listen = ipc://./hivemind.sock
+
+# Optional encrypted TCP curve listener
+#listen_curve = tcp://0.0.0.0:22030
+
+# One or more admin x25519 pubkeys (comma-separated) for the listen_curve address; you can specify
+# multiple by separating by whitespace or commas.  Any listed pubkeys will have admin access when
+# connecting to the listen_curve address.
+listen_curve_admin = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+# OMQ address where we can make RPC requests to oxend.  This can be a local oxend (e.g.
+# ipc:///path/to/oxend.sock), a plaintext address, or a curve-encrypted address with pubkey.
+oxend_rpc = tcp://localhost:22029
+
+# How often (in seconds) the main process re-checks existing subscriptions (for push renewals, expiries, etc.)
+subs_interval = 10
+
+# How many SN connections we attempt to establish at once.  Can be large to make a huge burst of
+# connections at startup, or lower to pace those connections a little more.
+max_connects = 1000
+
+# We use a time-based filter on notifications to avoid sending duplicate notifications; this timer
+# controls the minimum time for which we will filter duplicates.  (In practice, the filter will
+# often last somewhat longer than this, but this is the minimum).
+filter_lifetime = 300
+
+# How long the main hivemind process will wait at startup before establishing connections to
+# the network's service nodes.  This delay is designed to allow subordinate notification processes
+# to connect to the hivemind to ensure that notification services are ready after a restart before
+# we subscribe (and start receiving) message notifications.
+startup_wait = 2
+
+
+[keys]
+
+# This section lists the files containing keys needed by the PN server.  Each file is the 32-bytes
+# private key, either in binary or as a single 64-character hex string.
+#
+# You can generate these X25519 keys using:
+#
+#     ./make-x25519-key.py FILENAME
+#
+
+hivemind = key_x25519
+
+onionreq = onionreq_x25519
+
+
+[notify-firebase]
+
+# Magic json token file google spits out from somewhere deep in the firebase admin control panel
+#token_file = loki-a1a1a-firebase-adminsdk-blahblah-1234567890.json
+
+# How many times we will attempt to re-send notification on failure
+retries = 3
+
+# Interval (seconds) between retry attempts
+retry_interval = 10
+
+# How frequently (in seconds) we send notification requests
+notify_interval = 0.1
+
+[notify-apns]
+# Application identifier, aka "topic".  Required when using apns.
+identifier = com.loki-project.loki-messenger
+
+# Filename containing the APNS client certificate.  Required when using apns.
+cert_file = apns-cert.pem
+
+# Sandbox mode
+sandbox = 1
+
+# How many times we will attempt to re-send notification on failure
+retries = 3
+
+# Interval (seconds) between retry attempts
+retry_interval = 10

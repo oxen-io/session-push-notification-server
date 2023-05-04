@@ -165,10 +165,10 @@ class PushNotificationHelperV2(metaclass=Singleton):
         notifications_android = []
         notifications_huawei = []
         for message in messages_wait_to_push:
-            if len(message[HTTP.NotificationRequest.DATA]) > 10 * 1024:
-                self.logger.info(f"Message too large. The data size is {len(message[HTTP.NotificationRequest.DATA])}.")
+            if len(message['data']) > 10 * 1024:
+                self.logger.info(f"Message too large. The data size is {len(message['data'])}.")
                 continue
-            recipient = message[HTTP.NotificationRequest.SEND_TO]
+            recipient = message['send_to']
             device = self.database_helper.get_device(recipient)
             closed_group = self.database_helper.get_closed_group(recipient)
             if device:

@@ -8,7 +8,8 @@ from tools.lokiLogger import LokiLogger
 class Observer(metaclass=Singleton):
     def __init__(self):
         self.logger = LokiLogger().logger
-        self.bot = telepot.Bot("1685024629:AAHIvVUUdErsbtXW5UvoEw00GQM2TVTUFe8")
+        with open('bot.key', 'r') as f:
+            self.bot = telepot.Bot(f.read())
         self.subscribers = set()
 
         self.message_loop = MessageLoop(self.bot, self.handle)
