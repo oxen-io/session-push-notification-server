@@ -1,6 +1,6 @@
 from . import web
 from .web import app
-from .hive.subscription import SUBSCRIBE
+from .core import SUBSCRIBE
 from flask import request, jsonify, Response
 
 
@@ -81,7 +81,7 @@ def subscribe():
 
     { "error": CODE, "message": "some error description" }
 
-    where CODE is one of the integer values of the spns/hive/subscription.py SUBSCRIBE enum.
+    where CODE is one of the integer values of the spns/hive/subscription.hpp SUBSCRIBE enum.
     """
 
     clen = request.content_length
@@ -154,7 +154,7 @@ def unsubscribe():
 
     { "error": INT, "message": "some error message" }
 
-    where INT is one of the error integers from spns/hive/subscription.py's SUBSCRIBE enum.
+    where INT is one of the error integers from spns/hive/subscription.cpp's SUBSCRIBE enum.
     """
 
     clen = request.content_length

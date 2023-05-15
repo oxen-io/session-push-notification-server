@@ -17,9 +17,23 @@ CREATE TABLE subscriptions (
 
 CREATE INDEX subscriptions_signature_ts_idx ON subscriptions(signature_ts);
 
+CREATE INDEX subscriptions_service_idx ON subscriptions(service);
+
 CREATE TABLE sub_namespaces (
     subscription BIGINT NOT NULL REFERENCES subscriptions ON DELETE CASCADE,
     namespace SMALLINT NOT NULL,
 
     PRIMARY KEY(subscription, namespace)
 );
+
+CREATE TABLE service_stats (
+    service VARCHAR NOT NULL,
+    name VARCHAR NOT NULL,
+    val_str VARCHAR,
+    val_int BIGINT,
+
+    PRIMARY KEY(service, name),
+    CHECK((val_str IS NULL AND val_int IS NOT NULL) OR (val_str IS NOT NULL AND val_int IS NULL))
+);
+
+-- vim:ft=sql

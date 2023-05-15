@@ -6,11 +6,10 @@ from threading import Lock
 import json
 import traceback
 import time
-from ..hive.subscription import SUBSCRIBE
-from .util import derive_notifier_key
+from .util import derive_notifier_key, warn_on_except
 from .. import config
 from ..config import logger
-from ..utils import warn_on_except
+from ..core import SUBSCRIBE
 from datetime import timedelta
 
 omq = None
@@ -24,36 +23,27 @@ failures = 0  # Failed notifications (i.e. neither first attempt nor retries wor
 @warn_on_except
 def validate(msg: Message):
     parts = msg.data()
-    logger.info(f"validate! {parts}")
     if len(parts) != 2 or parts[0] != b"dummy":
         logger.warning("Internal error: invalid input to notifier.validate")
         msg.reply(str(SUBSCRIBE.ERROR.value), "Internal error")
         return
 
     try:
-        logger.debug("validate 1")
         data = json.loads(parts[1])
 
         # We can validate/require whatever data we want:
         foo = data["foo"]
-        logger.warning("foo1")
-        logger.debug("validate 3")
         if not foo or not foo.startswith("TEST-"):
-            logger.debug("validate 4")
             raise ValueError("Invalid input: foo must start with TEST-")
-        logger.warning("foo2")
         bar = data["bar"]
         if not isinstance(bar, int):
-            logger.debug("validate 5")
             raise ValueError("Invalid input: bar must be an integer")
 
-        logger.warning("foo3")
         # This could just be some magic device id provided directly, or could be some id we can
         # deterministically generate, e.g. with a hash like this:
         unique_id = blake2b_oneshot(
             f"{bar}_{foo}".encode(), digest_size=48, key=b"TestNotifier", encoder=HexEncoder
         )
-        logger.warning("foo4")
 
         msg.reply("0", unique_id, oxenc.bt_serialize({"foo": foo, "bar": bar}))
     except KeyError as e:
@@ -65,8 +55,8 @@ def validate(msg: Message):
 @warn_on_except
 def push_notification(msg: Message):
     data = oxenc.bt_deserialize(msg.data()[0])
-    logger.error(
-        f"Dummy notifier received push for {data[b'&']}, enc_key {data[b'^']}, message hash {data[b'#']} ({len(data[b'~'])}B) for account {data[b'@']}/{data[b'n']}"
+    logger.critical(
+        f"Dummy notifier received push for {data[b'&']}, enc_key {data[b'^']}, message hash {data[b'#']} ({len(data[b'~'])}B) for account {data[b'@'].hex()}/{data[b'n']}"
     )
     global stats_lock, notifies
     with stats_lock:
@@ -76,11 +66,12 @@ def push_notification(msg: Message):
 @warn_on_except
 def report_stats():
     global omq, hivemind, stats_lock, notifies, failures
-    logger.warning(f"dummy reporting stats {hivemind}")
     with stats_lock:
-        report = {"notifies": notifies, "failures": failures}
+        report = {"+notifies": notifies, "+failures": failures}
         notifies, failures = 0, 0
 
+    logger.debug(f"dummy re-registering and reporting stats {report}")
+    omq.send(hivemind, "admin.register_service", "dummy")
     omq.send(hivemind, "admin.service_stats", "dummy", oxenc.bt_serialize(report))
 
 
@@ -98,12 +89,12 @@ def connect_to_hivemind():
     cat.add_request_command("validate", validate)
     cat.add_command("push", push_notification)
 
-    omq.add_timer(report_stats, timedelta(seconds=1))
+    omq.add_timer(report_stats, timedelta(seconds=5))
 
     omq.start()
 
     hivemind = omq.connect_remote(
-        Address(config.HIVEMIND_SOCK), auth_level=AuthLevel.basic, ephemeral_routing_id=False
+        Address(config.config.hivemind_sock), auth_level=AuthLevel.basic, ephemeral_routing_id=False
     )
 
     omq.send(hivemind, "admin.register_service", "dummy")

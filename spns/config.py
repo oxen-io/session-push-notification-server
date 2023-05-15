@@ -4,25 +4,21 @@ import re
 import logging
 import coloredlogs
 from nacl.public import PrivateKey
+from spns.core import Config, logger as core_logger
+import oxenmq
 
 logger = logging.getLogger("spns")
 
 # Set up colored logging; we come back to set the level once we know it
 coloredlogs.install(milliseconds=True, isatty=True, logger=logger)
 
-# Default config settings; most of these are configurable via config.ini (see it for details).
-DB_URL = "postgresql:///spns"
-SUBS_INTERVAL = 10
-MAX_PENDING_CONNECTS = 500
-FILTER_LIFETIME = 10 * 60
-NOTIFIER_WAIT = 1.0
-OXEND_RPC = "curve://public.loki.foundation:22027/3c157ed3c675f56280dc5d8b2f00b327b5865c127bf2c6c42becc3ca73d9132b"
-HIVEMIND_SOCK = "ipc://hivemind.sock"
-HIVEMIND_CURVE = None
-HIVEMIND_CURVE_ADMIN = None
+# Global config; we set values in here, then pass it to HiveMind during startup.
+config = Config()
+
+# Keypairs; the "hivemind" key in here gets set in `config` for the main hivemind instance;
+# "onionreq" is the main onionreq keypair; other keys can be set as well (e.g. for notifiers).
 PRIVKEYS = {}
 PUBKEYS = {}
-LOG_LEVEL = "WARNING"
 
 # We stash anything in a `[notify-xyz]` into `NOTIFY['xyz']` for notifiers to piggyback on the
 # config.
@@ -96,26 +92,30 @@ def load_config():
     def bool_opt(name):
         return (name, lambda x: x in booly, lambda x: x in truthy)
 
-    # Map of: section => { param => ('GLOBAL', test lambda, value lambda) }
+    # Map of: section => { param => ('config_property', test lambda, value lambda) }
     # global is the string name of the global variable to set
     # test lambda returns True/False for validation (if None/omitted, accept anything)
     # value lambda extracts the value (if None/omitted use str value as-is)
     setting_map = {
-        "db": {"url": ("DB_URL", lambda x: x.startswith("postgresql"))},
+        "db": {"url": ("pg_connect", lambda x: x.startswith("postgresql"))},
         # 'keys': ... special handling ...
-        "log": {"level": ("LOG_LEVEL",)},
         "hivemind": {
-            "subs_interval": ("SUBS_INTERVAL", None, int),
-            "max_connects": ("MAX_PENDING_CONNECTS", None, int),
-            "filter_lifetime": ("FILTER_LIFETIME", None, int),
-            "startup_wait": ("NOTIFIER_WAIT", None, int),
-            "listen": ("HIVEMIND_SOCK", lambda x: re.search("^(?:tcp|ipc)://.", x)),
-            "listen_curve": ("HIVEMIND_CURVE", lambda x: re.search("^tcp://.", x)),
+            "subs_interval": ("subs_interval", None, int),
+            "max_connects": ("max_pending_connects", None, int),
+            "filter_lifetime": ("filter_lifetime", None, int),
+            "startup_wait": ("notifier_wait", None, lambda x: round(1000 * float(x))),
+            "listen": ("hivemind_sock", lambda x: re.search("^(?:tcp|ipc)://.", x)),
+            "listen_curve": ("hivemind_curve", lambda x: re.search("^tcp://.", x)),
             "listen_curve_admin": (
-                "HIVEMIND_CURVE_ADMIN",
+                "hivemind_curve_admin",
                 lambda x: re.search("^(?:[a-fA-F0-9]{64}\s+)*[a-fA-F0-9]{64}\s*$", x),
+                lambda x: set(bytes.fromhex(y) for y in x.split() if y),
             ),
-            "oxend_rpc": ("OXEND_RPC", lambda x: re.search("^(?:tcp|ipc|curve)://.", x)),
+            "oxend_rpc": (
+                "oxend_rpc",
+                lambda x: re.search("^(?:tcp|ipc|curve)://.", x),
+                lambda x: oxenmq.Address(x),
+            ),
         },
     }
 
@@ -127,7 +127,8 @@ def load_config():
         value = cp[s][opt]
 
         assert isinstance(conf, tuple) and 1 <= len(conf) <= 3
-        assert conf[0] in globals()
+        global config
+        assert hasattr(config, conf[0])
 
         if len(conf) >= 2 and conf[1]:
             if not conf[1](value):
@@ -137,7 +138,7 @@ def load_config():
             value = conf[2](value)
 
         logger.debug(f"Set config.{conf[0]} = {value}")
-        globals()[conf[0]] = value
+        setattr(config, conf[0], value)
 
     for s in cp.sections():
         if s == "keys":
@@ -166,6 +167,10 @@ def load_config():
                     logger.info(
                         f"Loaded {opt} X25519 keypair with pubkey {PUBKEYS[opt].encode().hex()}"
                     )
+        elif s == "log":
+            for opt in cp["log"]:
+                if opt == "level":
+                    core_logger.set_level(cp["log"][opt])
 
         elif s.startswith("notify-"):
             for opt in cp[s]:
@@ -177,6 +182,9 @@ def load_config():
 
         else:
             logger.warning(f"Ignoring unknown section [{s}] in {conf_ini}")
+
+    config.privkey = PRIVKEYS["hivemind"].encode()
+    config.pubkey = PUBKEYS["hivemind"].encode()
 
 
 try:

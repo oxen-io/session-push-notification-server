@@ -49,3 +49,18 @@ def encrypt_notify_payload(data: dict, max_msg_size: int = 2500):
         payload += b"\0" * (256 - over)
 
     return encrypt_payload(payload, enc_key)
+
+
+def warn_on_except(f):
+    """
+    Wrapper that catches and logs exceptions, used for endpoint wrapping where an exception just
+    gets eaten by oxenmq anyway).
+    """
+
+    def wrapper(*args, **kwargs):
+        try:
+            f(*args, **kwargs)
+        except Exception as e:
+            config.logger.warning(f"Exception in {f.__name__}: {e}")
+
+    return wrapper

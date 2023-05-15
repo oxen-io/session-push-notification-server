@@ -1,0 +1,9 @@
+[submodule "oxen-logging"]
+	path = oxen-logging
+	url = https://github.com/oxen-io/oxen-logging.git
+[submodule "libpqxx"]
+	path = libpqxx
+	url = https://github.com/jtv/libpqxx.git
+[submodule "pybind11"]
+	path = pybind11
+	url = https://github.com/pybind/pybind11.git

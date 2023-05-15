@@ -35,19 +35,19 @@ def make_subrequest(
     (even if it was None) and inner request auth headers will be ignored.
     """
 
-    http_headers = {'HTTP_{}'.format(h.upper().replace('-', '_')): v for h, v in headers.items()}
+    http_headers = {"HTTP_{}".format(h.upper().replace("-", "_")): v for h, v in headers.items()}
 
     if content_type is None:
-        if 'HTTP_CONTENT_TYPE' in http_headers:
-            content_type = http_headers['HTTP_CONTENT_TYPE']
+        if "HTTP_CONTENT_TYPE" in http_headers:
+            content_type = http_headers["HTTP_CONTENT_TYPE"]
         elif body is not None:
-            content_type = 'application/octet-stream'
+            content_type = "application/octet-stream"
         elif json is not None:
-            content_type = 'application/json'
+            content_type = "application/json"
         else:
-            content_type = ''
+            content_type = ""
 
-    for x in ('HTTP_CONTENT_TYPE', 'HTTP_CONTENT_LENGTH'):
+    for x in ("HTTP_CONTENT_TYPE", "HTTP_CONTENT_LENGTH"):
         if x in http_headers:
             del http_headers[x]
 
@@ -55,20 +55,20 @@ def make_subrequest(
         if json is not None:
             from json import dumps
 
-            body = dumps(json, separators=(',', ':')).encode()
+            body = dumps(json, separators=(",", ":")).encode()
         else:
-            body = b''
+            body = b""
 
     body_input = BytesIO(body)
     content_length = len(body)
 
-    if '?' in path:
-        path, query_string = path.split('?', 1)
+    if "?" in path:
+        path, query_string = path.split("?", 1)
     else:
-        query_string = ''
+        query_string = ""
 
-    if '%' in path:
-        path = urllib.parse.unquote(path, errors='strict')
+    if "%" in path:
+        path = urllib.parse.unquote(path, errors="strict")
 
     # Werkzeug has some screwy internals: it requires PATH_INFO to be a bastardized string
     # masquerading as bytes: it encodes the string as latin1, then decodes *those* bytes to utf-8.
@@ -76,7 +76,7 @@ def make_subrequest(
     # latin1 string.  WTF.
     monkey_path = path
     if any(ord(c) > 127 for c in path):
-        monkey_path = path.encode('utf-8').decode('latin1')
+        monkey_path = path.encode("utf-8").decode("latin1")
 
     # Set up the wsgi environ variables for the subrequest (see PEP 0333)
     subreq_env = {
@@ -87,8 +87,8 @@ def make_subrequest(
         "CONTENT_TYPE": content_type,
         "CONTENT_LENGTH": content_length,
         **http_headers,
-        'wsgi.input': body_input,
-        'flask._preserve_context': False,
+        "wsgi.input": body_input,
+        "flask._preserve_context": False,
     }
 
     try:
@@ -108,7 +108,7 @@ def make_subrequest(
             {
                 k.lower(): v
                 for k, v in response.get_wsgi_headers(subreq_env)
-                if k.lower() != 'content-length'
+                if k.lower() != "content-length"
             },
         )
 

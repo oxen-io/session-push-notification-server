@@ -6,7 +6,9 @@ import oxenmq
 from uwsgidecorators import postfork
 
 app = flask.Flask(__name__)
-coloredlogs.install(milliseconds=True, isatty=True, logger=app.logger, level=config.LOG_LEVEL)
+coloredlogs.install(
+    milliseconds=True, isatty=True, logger=app.logger, level=config.core_logger.get_level()
+)
 
 omq = None
 hivemind = None
@@ -26,7 +28,7 @@ def start_oxenmq():
     omq.start()
     app.logger.debug("Started, connecting to hivemind")
 
-    hivemind = omq.connect_remote(oxenmq.Address(config.HIVEMIND_SOCK))
+    hivemind = omq.connect_remote(oxenmq.Address(config.config.hivemind_sock))
 
 
 # Load components that depend on our `app` for registering themselves:

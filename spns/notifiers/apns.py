@@ -40,8 +40,8 @@ import json
 
 from .. import config
 from ..config import logger
-from ..utils import warn_on_except
-from .util import encrypt_payload, derive_notifier_key
+from ..core import SUBSCRIBE
+from .util import encrypt_payload, derive_notifier_key, warn_on_except
 
 import oxenc
 from oxenmq import OxenMQ, Message, Address, AuthLevel
@@ -152,7 +152,7 @@ def push_notification(msg: Message):
 def report_stats():
     global stats_lock, notifies, notify_retries, failures
     with stats_lock:
-        report = {"notifies": notifies, "notify_retries": notify_retries, "failures": failures}
+        report = {"+notifies": notifies, "+notify_retries": notify_retries, "+failures": failures}
         notifies, notify_retries, failures = 0, 0, 0
 
     global omq, hivemind
@@ -178,12 +178,14 @@ def run():
         cat.add_request_command("validate", validate)
         cat.add_command("push", push_notification)
 
-        omq.add_timer(report_stats, timedelta(seconds=1))
+        omq.add_timer(report_stats, timedelta(seconds=5))
 
         omq.start()
 
         hivemind = omq.connect_remote(
-            Address(config.HIVEMIND_SOCK), auth_level=AuthLevel.basic, ephemeral_routing_id=False
+            Address(config.config.hivemind_sock),
+            auth_level=AuthLevel.basic,
+            ephemeral_routing_id=False,
         )
 
         conf = config.NOTIFY["apns"]

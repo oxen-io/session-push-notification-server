@@ -41,7 +41,7 @@ filter_lifetime = 300
 # the network's service nodes.  This delay is designed to allow subordinate notification processes
 # to connect to the hivemind to ensure that notification services are ready after a restart before
 # we subscribe (and start receiving) message notifications.
-startup_wait = 2
+startup_wait = 2.0
 
 
 [keys]

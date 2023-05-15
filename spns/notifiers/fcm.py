@@ -7,8 +7,8 @@ import asyncio
 
 from .. import config
 from ..config import logger
-from ..utils import warn_on_except
-from .util import encrypt_payload
+from ..core import SUBSCRIBE
+from .util import encrypt_payload, warn_on_except
 
 from oxenc import bt_serialize, bt_deserialize, to_base64
 
@@ -66,6 +66,7 @@ def make_notifier(msg: Message):
                 logger.warning(
                     f"Failed to send notification: {response.status} ({response.description}); giving up after {max_retries} retries"
                 )
+
     return fcm_notify
 
 
@@ -104,12 +105,11 @@ def run():
     omq.start()
 
     hivemind = omq.connect_remote(
-        Address(config.HIVEMIND_SOCK), auth_level=AuthLevel.basic, ephemeral_routing_id=False
+        Address(config.config.hivemind_sock), auth_level=AuthLevel.basic, ephemeral_routing_id=False
     )
 
     conf = config.NOTIFY["firebase"]
-    fcm = FCM( # FIXME?
-            )
+    fcm = FCM()  # FIXME?
 
     omq.send(hivemind, "admin.register_service", "firebase")
 

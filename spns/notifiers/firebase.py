@@ -2,8 +2,8 @@
 
 from .. import config
 from ..config import logger
-from ..utils import warn_on_except
-from .util import encrypt_payload, derive_notifier_key
+from ..core import SUBSCRIBE
+from .util import encrypt_payload, derive_notifier_key, warn_on_except
 
 import firebase_admin
 from firebase_admin import messaging
@@ -102,7 +102,7 @@ def send_pending():
 def report_stats():
     global stats_lock, notifies, notify_retries, failures
     with stats_lock:
-        report = {"notifies": notifies, "notify_retries": notify_retries, "failures": failures}
+        report = {"+notifies": notifies, "+notify_retries": notify_retries, "+failures": failures}
         notifies, notify_retries, failures = 0, 0, 0
 
     global omq, hivemind
@@ -125,7 +125,7 @@ def start():
     cat.add_request_command("validate", validate)
     cat.add_command("push", push_notification)
 
-    omq.add_timer(report_stats, datetime.timedelta(seconds=1))
+    omq.add_timer(report_stats, datetime.timedelta(seconds=5))
 
     conf = config.NOTIFY["firebase"]
     queue_timer = omq.add_timer(
@@ -137,7 +137,7 @@ def start():
     omq.start()
 
     hivemind = omq.connect_remote(
-        Address(config.HIVEMIND_SOCK), auth_level=AuthLevel.basic, ephemeral_routing_id=False
+        Address(config.config.hivemind_sock), auth_level=AuthLevel.basic, ephemeral_routing_id=False
     )
 
     firebase_app = firebase_admin.initialize_app(
