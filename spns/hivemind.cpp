@@ -19,6 +19,7 @@ namespace spns {
 namespace log = oxen::log;
 static auto cat = log::Cat("hivemind");
 static auto omq_cat = log::Cat("oxenmq");
+static auto stats = log::Cat("stats");
 
 static void omq_log(oxenmq::LogLevel level, const char* file, int line, std::string msg) {
     // We bump the oxenmq log levels down one severity because oxenmq logging is probably less
@@ -282,6 +283,9 @@ HiveMind::HiveMind(Config conf_in) :
     // This is for operations that can be high latency, like re-subscriptions, clearing expiries,
     // etc.:
     omq_.add_timer([this] { subs_slow(); }, config.subs_interval);
+
+    // We start this out at 15s, but after a minute reschedule it to every 10min.
+    stats_timer = omq_.add_timer([this] { log_stats(); }, 15s);
 
     // This one is much more frequent: it handles any immediate subscription duties (e.g. to
     // deal with a new subscriber we just added):
@@ -658,7 +662,7 @@ void HiveMind::on_service_stats(oxenmq::Message& m) {
     }
 }
 
-void HiveMind::on_get_stats(oxenmq::Message& m) {
+nlohmann::json HiveMind::get_stats_json() {
     auto result = nlohmann::json{};
 
     {
@@ -708,8 +712,46 @@ void HiveMind::on_get_stats(oxenmq::Message& m) {
         result["uptime"] =
                 std::chrono::duration<double>(system_clock::now() - startup_time).count();
     }
+    return result;
+}
 
-    m.send_reply(result.dump());
+void HiveMind::on_get_stats(oxenmq::Message& m) {
+    m.send_reply(get_stats_json().dump());
+}
+
+void HiveMind::log_stats() {
+    auto s = get_stats_json();
+
+    std::list<std::string> notifiers;
+    for (auto& [k, v] : s.items())
+        if (starts_with(k, "last."))
+            if (auto t = v.get<int64_t>(); t >= unix_timestamp(startup_time) &&
+                                           t >= unix_timestamp(system_clock::now() - 1min))
+                notifiers.push_back(k.substr(5));
+
+    int64_t total_notifies = 0;
+    for (auto& [service, data] : s["notifier"].items())
+        if (auto it = data.find("notifies"); it != data.end())
+            total_notifies += it->get<int64_t>();
+
+    log::info(
+            stats,
+            "SN conns: {}/{} ({} pending); Height: {}; Accts/Subs: {}/{}; svcs: {}; "
+            "notifies: {}",
+            s["connections"].get<int>(),
+            s["snodes"].get<int>(),
+            s["pending_connections"].get<int>(),
+            s["block_height"].get<int>(),
+            s["accounts_monitored"].get<int>(),
+            s["subscriptions"]["total"].get<int>(),
+            "{}"_format(fmt::join(notifiers, ", ")),
+            total_notifies);
+
+    // Print this on the default 30s interval twice, then switch it to a 10min timer:
+    if (++stats_logged == 4) {
+        omq_.cancel_timer(stats_timer);
+        stats_timer = omq_.add_timer([this] { log_stats(); }, 10min);
+    }
 }
 
 void HiveMind::on_notifier_validation(

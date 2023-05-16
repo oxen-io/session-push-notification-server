@@ -193,7 +193,13 @@ class HiveMind {
     /// integer and string values are permitted (+keys only allow integers).
     void on_service_stats(oxenmq::Message& m);
 
+    nlohmann::json get_stats_json();
+
     void on_get_stats(oxenmq::Message& m);
+
+    int stats_logged = 0;
+    oxenmq::TimerID stats_timer;
+    void log_stats();
 
     using UnsubData = std::tuple<Signature, std::optional<SubkeyTag>, int64_t>;
     void on_notifier_validation(
