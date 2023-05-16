@@ -171,6 +171,10 @@ def load_config():
             for opt in cp["log"]:
                 if opt == "level":
                     core_logger.set_level(cp["log"][opt])
+                elif opt.startswith("level-") and len(opt) > 6:
+                    core_logger.set_level(opt[6:], cp["log"][opt])
+                else:
+                    logger.warning(f"Ignoring unknown log item [log] {opt} in {conf_ini}")
 
         elif s.startswith("notify-"):
             for opt in cp[s]:
