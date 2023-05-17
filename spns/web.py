@@ -10,6 +10,20 @@ coloredlogs.install(
     milliseconds=True, isatty=True, logger=app.logger, level=config.core_logger.get_level()
 )
 
+# Monkey-patch app.get/post/etc. for Flask <2 compatibility; this has to be before the imports,
+# below, because they depend on this existing.
+if not hasattr(flask.Flask, "post"):
+
+    def _add_route_shortcut(on, name):
+        def meth(self, rule: str, **options):
+            return self.route(rule, methods=[name.upper()], **options)
+
+        setattr(on, name, meth)
+
+    for method in ("get", "post", "put", "delete", "patch"):
+        _add_route_shortcut(flask.Flask, method)
+        _add_route_shortcut(flask.Blueprint, method)
+
 omq = None
 hivemind = None
 
