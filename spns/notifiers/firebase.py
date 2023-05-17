@@ -70,10 +70,10 @@ def push_notification(msg: Message):
 
     enc_payload = encrypt_notify_payload(data, max_msg_size=MAX_MSG_SIZE)
 
-    device_token = data[b"&"]  # unique service id, as we returned from validate
+    device_token = data[b"&"].decode()  # unique service id, as we returned from validate
 
-    msq = messaging.Message(
-        data={"enc_payload": enc_payload, "spns": SPNS_FIREBASE_VERSION},
+    msg = messaging.Message(
+        data={"enc_payload": oxenc.to_base64(enc_payload), "spns": f"{SPNS_FIREBASE_VERSION}"},
         token=device_token,
         android=messaging.AndroidConfig(priority="high"),
     )
@@ -83,6 +83,7 @@ def push_notification(msg: Message):
         notify_queue.append(msg)
 
 
+@warn_on_except
 def send_pending():
     global notify_queue, queue_lock, firebase_app
     with queue_lock:
@@ -123,7 +124,7 @@ def start():
     conf = config.NOTIFY["firebase"]
     queue_timer = omq.add_timer(
         send_pending,
-        datetime.timedelta(float(conf["notify_interval"])),
+        datetime.timedelta(seconds=float(conf["notify_interval"])),
         thread=omq.add_tagged_thread("firebasenotify"),
     )
 

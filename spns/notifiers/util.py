@@ -30,14 +30,14 @@ def derive_notifier_key(name):
 
 def encrypt_payload(msg: bytes, enc_key: bytes):
     nonce = nacl.utils.random(crypto_aead_xchacha20poly1305_ietf_NPUBBYTES)
-    ciphertext = crypto_aead_xchacha20poly1305_ietf_encrypt(message=msg, key=enc_key, nonce=nonce)
+    ciphertext = crypto_aead_xchacha20poly1305_ietf_encrypt(message=msg, key=enc_key, nonce=nonce, aad=None)
     return nonce + ciphertext
 
 
 def encrypt_notify_payload(data: dict, max_msg_size: int = 2500):
     enc_key = data[b"^"]
 
-    metadata = {"@": data[b"@"].hex(), "#": data[b"#"], "n": data[b"n"]}
+    metadata = {"@": data[b"@"].hex(), "#": data[b"#"].decode(), "n": data[b"n"]}
     body = data.get(b"~")
 
     if body:
