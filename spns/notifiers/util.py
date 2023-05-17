@@ -8,6 +8,9 @@ from nacl.bindings import (
 )
 from oxenc import bt_serialize, bt_deserialize, to_base64
 import json
+from threading import Lock
+import time
+from collections import deque
 
 from .. import config
 
@@ -64,3 +67,48 @@ def warn_on_except(f):
             config.logger.warning(f"Exception in {f.__name__}: {e}")
 
     return wrapper
+
+
+class NotifyStats:
+    def __init__(self):
+        self.lock = Lock()
+
+        # Stats since the last report:
+        self.notifies = 0  # Total successful notifications
+        self.notify_retries = 0  # Successful notifications that required 1 or more retries
+        self.failures = 0  # Failed notifications (i.e. neither first attempt nor retries worked)
+
+        # History of recent (time, notifies) values:
+        self.notify_hist = deque()
+
+    def collect(self):
+        with self.lock:
+            now = time.time()
+            report = {
+                "+notifies": self.notifies,
+                "+notify_retries": self.notify_retries,
+                "+failures": self.failures,
+            }
+
+            for mins in (60, 10, 1):
+                cutoff, since, summation, n = now - mins * 60, 0, 0, 0
+                for i in range(len(self.notify_hist)):
+                    t, notif = self.notify_hist[i]
+                    if t >= cutoff:
+                        if n == 0:
+                            since = self.notify_hist[i - 1 if i > 0 else i][0]
+                        n += 1
+                        summation += notif
+
+                if n > 0:
+                    report[f"notifies_per_day.{mins}m"] = round(
+                        summation / n / (now - since) * 86400
+                    )
+
+            cutoff = now - 3600
+            while self.notify_hist and self.notify_hist[0][0] < cutoff:
+                self.notify_hist.popleft()
+            self.notify_hist.append((now, self.notifies))
+            self.notifies, self.notify_retries, self.failures = 0, 0, 0
+
+        return report

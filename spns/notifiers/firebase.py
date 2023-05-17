@@ -3,7 +3,7 @@
 from .. import config
 from ..config import logger
 from ..core import SUBSCRIBE
-from .util import encrypt_notify_payload, derive_notifier_key, warn_on_except
+from .util import encrypt_notify_payload, derive_notifier_key, warn_on_except, NotifyStats
 
 import firebase_admin
 from firebase_admin import messaging
@@ -39,10 +39,7 @@ MAX_MSG_SIZE = 2500
 MAX_NOTIFIES = 500
 
 
-stats_lock = Lock()
-notifies = 0  # Total successful notifications
-notify_retries = 0  # Successful notifications that required 1 or more retries
-failures = 0  # Failed notifications (i.e. neither first attempt nor retries worked)
+stats = NotifyStats()
 
 
 @warn_on_except
@@ -101,13 +98,8 @@ def send_pending():
 
 @warn_on_except
 def report_stats():
-    global stats_lock, notifies, notify_retries, failures
-    with stats_lock:
-        report = {"+notifies": notifies, "+notify_retries": notify_retries, "+failures": failures}
-        notifies, notify_retries, failures = 0, 0, 0
-
-    global omq, hivemind
-    omq.send(hivemind, "admin.service_stats", "firebase", oxenc.bt_serialize(report))
+    global omq, hivemind, stats
+    omq.send(hivemind, "admin.service_stats", "firebase", oxenc.bt_serialize(stats.collect()))
 
 
 def start():

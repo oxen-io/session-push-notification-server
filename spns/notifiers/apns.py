@@ -42,7 +42,7 @@ import signal
 from .. import config
 from ..config import logger
 from ..core import SUBSCRIBE
-from .util import encrypt_payload, derive_notifier_key, warn_on_except
+from .util import encrypt_payload, derive_notifier_key, warn_on_except, NotifyStats
 
 import oxenc
 from oxenmq import OxenMQ, Message, Address, AuthLevel
@@ -71,10 +71,7 @@ SPNS_APNS_VERSION = 1
 MAX_MSG_SIZE = 2500
 
 
-stats_lock = Lock()
-notifies = 0  # Total successful notifications
-notify_retries = 0  # Successful notifications that required 1 or more retries
-failures = 0  # Failed notifications (i.e. neither first attempt nor retries worked)
+stats = NotifyStats()
 
 
 @warn_on_except
@@ -108,17 +105,17 @@ def make_notifier(request: NotificationRequest):
         while True:
             response = await apns.send_notification(request)
             if response.is_successful:
-                with stats_lock:
-                    notifies += 1
+                with stats.lock:
+                    stats.notifies += 1
                     if retries < max_retries:
-                        notify_retries += 1
+                        stats.notify_retries += 1
                 return
             if retries > 0:
                 retries -= 1
                 await asyncio.sleep(retry_sleep)
             else:
-                with stats_lock:
-                    failures += 1
+                with stats.lock:
+                    stats.failures += 1
                 logger.warning(
                     f"Failed to send notification: {response.status} ({response.description}); giving up after {max_retries} retries"
                 )
@@ -151,13 +148,8 @@ def push_notification(msg: Message):
 
 @warn_on_except
 def report_stats():
-    global stats_lock, notifies, notify_retries, failures
-    with stats_lock:
-        report = {"+notifies": notifies, "+notify_retries": notify_retries, "+failures": failures}
-        notifies, notify_retries, failures = 0, 0, 0
-
-    global omq, hivemind
-    omq.send(hivemind, "admin.service_stats", "apns", oxenc.bt_serialize(report))
+    global stats, omq, hivemind
+    omq.send(hivemind, "admin.service_stats", "apns", oxenc.bt_serialize(stats.collect()))
 
 
 def run():
