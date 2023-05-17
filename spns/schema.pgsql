@@ -10,7 +10,7 @@ CREATE TABLE subscriptions (
     enc_key BYTEA NOT NULL,       -- encryption key with which we encrypt the payload
     service VARCHAR NOT NULL,     -- subscription service type ("apns", "firebase")
     svcid VARCHAR NOT NULL,       -- unique device/app identifier
-    svcdata BYTEA NOT NULL,       -- arbitrary data for subscription service
+    svcdata BYTEA,                -- arbitrary data for subscription service
 
     UNIQUE(account, service, svcid)
 );
