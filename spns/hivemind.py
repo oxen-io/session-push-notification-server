@@ -5,6 +5,7 @@ import time
 import signal
 import os
 
+
 def run():
     """Runs a HiveMind instance indefinitely (intended for use as a uwsgi mule)"""
 
@@ -19,7 +20,7 @@ def run():
             hivemind = None
 
     def sig_die(signum, frame):
-        raise OSError(f"Caught signal {signal.Signals(signum)}")
+        raise OSError(f"Caught signal {signal.Signals(signum).name}")
 
     try:
         logger.info("Starting hivemind")
@@ -28,6 +29,7 @@ def run():
         logger.info("Hivemind started")
 
         signal.signal(signal.SIGHUP, sig_die)
+        signal.signal(signal.SIGINT, sig_die)
 
         while True:
             time.sleep(3600)

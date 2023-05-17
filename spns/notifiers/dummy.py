@@ -6,6 +6,7 @@ from threading import Lock
 import json
 import traceback
 import time
+import signal
 from .util import derive_notifier_key, warn_on_except
 from .. import config
 from ..config import logger
@@ -110,10 +111,18 @@ def disconnect():
 
 def run():
     """Entry point when configured to run as a mule"""
+
+    def sig_die(signum, frame):
+        raise OSError(f"Caught signal {signal.Signals(signum).name}")
+
     try:
         logger.info("dummy test notifier starting up")
         connect_to_hivemind()
         logger.info("dummy test notifier connected to hivemind")
+
+        signal.signal(signal.SIGHUP, sig_die)
+        signal.signal(signal.SIGINT, sig_die)
+
         while True:
             time.sleep(1)
 

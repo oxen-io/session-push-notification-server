@@ -3,7 +3,7 @@
 from .. import config
 from ..config import logger
 from ..core import SUBSCRIBE
-from .util import encrypt_payload, derive_notifier_key, warn_on_except
+from .util import encrypt_notify_payload, derive_notifier_key, warn_on_except
 
 import firebase_admin
 from firebase_admin import messaging
@@ -15,6 +15,7 @@ from oxenmq import OxenMQ, Message, Address, AuthLevel
 import datetime
 import time
 import json
+import signal
 from threading import Lock
 
 omq = None
@@ -173,8 +174,15 @@ def run():
         raise e
 
     logger.info("Firebase notifier started")
+
+    def sig_die(signum, frame):
+        raise OSError(f"Caught signal {signal.Signals(signum).name}")
+
     try:
+        signal.signal(signal.SIGHUP, sig_die)
+        signal.signal(signal.SIGINT, sig_die)
+
         while omq is not None:
-            time.sleep(1)
-    except Exception:
-        logger.error(f"firebase notifier mule died via exception:\n{traceback.format_exc()}")
+            time.sleep(3600)
+    except Exception as e:
+        logger.error(f"firebase notifier mule died via exception: {e}")

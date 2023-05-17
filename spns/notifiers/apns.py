@@ -37,6 +37,7 @@ import asyncio
 from threading import Lock
 from datetime import timedelta
 import json
+import signal
 
 from .. import config
 from ..config import logger
@@ -202,8 +203,15 @@ def run():
 
     logger.info("apns notifier started")
 
+    def sig_die(signum, frame):
+        raise OSError(f"Caught signal {signal.Signals(signum).name}")
+
     try:
         loop = asyncio.new_event_loop()
+
+        signal.signal(signal.SIGHUP, sig_die)
+        signal.signal(signal.SIGINT, sig_die)
+
         loop.run_forever()
     except Exception as e:
         logger.critical(f"APNS run loop failed: {e}")
