@@ -200,7 +200,7 @@ HiveMind::HiveMind(Config conf_in) :
                     ExcWrapper{*this, &HiveMind::on_service_stats, "on_service_stats"})
 
             // Retrieves current statistics
-            .add_command("get_stats", ExcWrapper{*this, &HiveMind::on_get_stats, "on_get_stats"})
+            .add_request_command("get_stats", ExcWrapper{*this, &HiveMind::on_get_stats, "on_get_stats"})
 
             // end of "admin." commands
             ;
