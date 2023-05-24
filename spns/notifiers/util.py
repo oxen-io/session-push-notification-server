@@ -30,7 +30,9 @@ def derive_notifier_key(name):
 
 def encrypt_payload(msg: bytes, enc_key: bytes):
     nonce = nacl.utils.random(crypto_aead_xchacha20poly1305_ietf_NPUBBYTES)
-    ciphertext = crypto_aead_xchacha20poly1305_ietf_encrypt(message=msg, key=enc_key, nonce=nonce, aad=None)
+    ciphertext = crypto_aead_xchacha20poly1305_ietf_encrypt(
+        message=msg, key=enc_key, nonce=nonce, aad=None
+    )
     return nonce + ciphertext
 
 

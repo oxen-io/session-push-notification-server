@@ -200,7 +200,8 @@ HiveMind::HiveMind(Config conf_in) :
                     ExcWrapper{*this, &HiveMind::on_service_stats, "on_service_stats"})
 
             // Retrieves current statistics
-            .add_request_command("get_stats", ExcWrapper{*this, &HiveMind::on_get_stats, "on_get_stats"})
+            .add_request_command(
+                    "get_stats", ExcWrapper{*this, &HiveMind::on_get_stats, "on_get_stats"})
 
             // end of "admin." commands
             ;
@@ -675,8 +676,12 @@ nlohmann::json HiveMind::get_stats_json() {
             if (service == "") {
                 if (s)
                     result[name] = std::move(*s);
-                else
+                else {
                     result[name] = *i;
+                    if (starts_with(name, "last."))
+                        result["alive." + name.substr(5)] =
+                                *i > unix_timestamp(system_clock::now() - 1min);
+                }
             } else {
                 if (s)
                     result["notifier"][service][name] = std::move(*s);
