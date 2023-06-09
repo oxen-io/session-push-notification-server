@@ -60,7 +60,7 @@ class SNode {
     uint64_t swarm_;
 
     std::mutex mutex_;  // Mutex for our local stuff; we must *never* do something with hivemind
-                        // that requires a lock while we hold this.
+                        // that requires a (HiveMind) lock while we hold this.
 
     using system_clock = std::chrono::system_clock;
     using steady_clock = std::chrono::steady_clock;

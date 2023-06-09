@@ -339,12 +339,15 @@ void HiveMind::set_ready() {
     }
 }
 void HiveMind::defer_request(oxenmq::Message&& m, ExcWrapper& callback) {
-    std::lock_guard lock{deferred_mutex_};
-    if (ready)
-        // Must have flipped between the check and now, so don't actually defer it
-        callback(m);
-    else
-        deferred_.emplace_back(std::move(m), callback);
+    {
+        std::lock_guard lock{deferred_mutex_};
+        if (!ready) {
+            deferred_.emplace_back(std::move(m), callback);
+            return;
+        }
+    }
+    // Must have flipped between the check and now, so don't actually defer it
+    callback(m);
 }
 DeferredRequest::DeferredRequest(oxenmq::Message&& m, ExcWrapper& callback) :
         message{m.oxenmq, std::move(m.conn), std::move(m.access), std::move(m.remote)},
@@ -752,7 +755,7 @@ void HiveMind::log_stats() {
             "{}"_format(fmt::join(notifiers, ", ")),
             total_notifies);
 
-    // Print this on the default 30s interval twice, then switch it to a 10min timer:
+    // Print this on the default 30s interval for a couple minutes, then switch it to a 10min timer:
     if (++stats_logged == 4) {
         omq_.cancel_timer(stats_timer);
         stats_timer = omq_.add_timer([this] { log_stats(); }, 10min);
@@ -1209,17 +1212,18 @@ void HiveMind::on_sns_response(std::vector<std::string> data) {
                                 sn->add_account(swarmpk);
                 });
             }
-            // We leak the lock, without releasing it, into the completion function of the batch
-            // job; this current function ends, but the batch goes on, when finished calling the
-            // completion function, which finally releases the lock.  (We have to stuff the lock
-            // into a shared_ptr here because std::function requires copyable lambdas).
-            batch.completion([this, lock = std::make_shared<decltype(lock)>(std::move(lock))](
-                                     auto&&) mutable {
+            // We release the lock *without* unlocking it below, then deal with finally unlocking
+            // it in the completion function when we finish at the end of the batch job.
+            batch.completion([this](auto&&) mutable {
+                std::unique_lock lock{mutex_, std::adopt_lock};
                 check_subs();
-                lock->unlock();
             });
 
             omq_.batch(std::move(batch));
+
+            // Leak the lock:
+            lock.release();
+
         } else if (!new_or_changed_sns.empty()) {
             // Otherwise swarms stayed the same(which means no accounts changed swarms), but
             // snodes might have moved in / out of existing swarms, so re-add any subscribers to
