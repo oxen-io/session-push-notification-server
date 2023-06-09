@@ -2,10 +2,6 @@
 
 #include <oxenc/endian.h>
 #include <oxenc/hex.h>
-#include <sodium/crypto_core_ed25519.h>
-#include <sodium/crypto_generichash_blake2b.h>
-#include <sodium/crypto_scalarmult_ed25519.h>
-#include <sodium/crypto_sign_ed25519.h>
 
 #include <array>
 #include <cassert>
@@ -19,6 +15,8 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+
+#include "signature.hpp"
 
 namespace spns::hive {
 
@@ -76,32 +74,7 @@ Subscription::Subscription(
                 sig_msg += ',';
             append_int(sig_msg, namespaces[i]);
         }
-
-        std::optional<Ed25519PK> verify_pubkey;
-        if (subkey_tag) {
-            auto& vpk = verify_pubkey.emplace();
-            // H("OxenSSSubkey" || c || A):
-            crypto_generichash_blake2b_state state;
-            crypto_generichash_blake2b_init(
-                    &state, reinterpret_cast<const unsigned char*>("OxenSSSubkey"), 12, 32);
-            crypto_generichash_blake2b_update(&state, *subkey_tag, 32);
-            crypto_generichash_blake2b_update(&state, pubkey.ed25519, 32);
-            crypto_generichash_blake2b_final(&state, vpk, 32);
-
-            // c + H(...):
-            crypto_core_ed25519_scalar_add(vpk, vpk, pubkey.ed25519);
-
-            // (c + H(...)) A:
-            if (0 != crypto_scalarmult_ed25519_noclamp(vpk, vpk, pubkey.ed25519))
-                throw std::invalid_argument{"Invalid pubkey/subkey combination"};
-        }
-
-        if (0 != crypto_sign_ed25519_verify_detached(
-                         sig,
-                         reinterpret_cast<const unsigned char*>(sig_msg.data()),
-                         sig_msg.size(),
-                         verify_pubkey ? *verify_pubkey : pubkey.ed25519))
-            throw std::invalid_argument{"Subscription: signature validation failed"};
+        verify_storage_signature(sig_msg, sig, pubkey.ed25519, subkey_tag);
     }
 }
 
