@@ -4,7 +4,7 @@
 
     https://push.getsession.org
 
-via a v4 onion request.
+via a v4 onion request.  The onion req pubkey is: d7557fe563e2610de876c0ac7341b62f3c82d5eea4b62c702392ea4368f51b3b
 
 - The JSON payload looks like this:
 
@@ -58,7 +58,7 @@ via a v4 onion request.
       re-subscriptions happen more frequently than once every 14 days.
 
     - a signature is signed using the account's Ed25519 private key (or Ed25519 subkey, if using
-      subkey authentication with a subkey_tag), and signs the value:
+      subkey authentication with a subkey_tag, for future closed group subscriptions), and signs the value:
 
       "MONITOR" || HEX(ACCOUNT) || SIG_TS || DATA01 || NS[0] || "," || ... || "," || NS[n]
 
@@ -81,10 +81,11 @@ via a v4 onion request.
 
     { "error": CODE, "message": "some error description" }
 
-    where CODE is one of the integer values of the spns/hive/subscription.py SUBSCRIBE enum.
+    where CODE is one of the integer values of the spns/hive/subscription.hpp SUBSCRIBE enum, here:
+    https://github.com/jagerman/session-push-notification-server/blob/spns-v2/spns/hive/subscription.hpp#L21
 
 
-- Notifications now look like this (APNS):
+- Notifications when received now look like this (APNS):
 
 
     {
@@ -104,21 +105,22 @@ via a v4 onion request.
     I assume it's what it needs to be.
   - `spns` is a version counter, currently 1, but will be incremented if we make significant future
     changes to the notification protocol.
-  - `enc_payload` is a base64-encoded value which, in binary form, is:
+  - `enc_payload` is a base64-encoded value which, in decoded (binary) form, is:
     - 24 bytes of NONCE
     - however many bytes of encryption data
-      - the encryption data is a 1- or 2-element bencoded list, where:
-        - element [0] is the notification metadata json
-        - element [1] is the message data (bytes).
+      - the encryption data, once decrypted, is a 1- or 2-element bencoded list, where:
+        - element [0] is the notification metadata (in JSON)
+        - element [1] is the message data (in bytes).
 
-  - Notification metadata is a json object with keys:
+  - Notification metadata is JSON with keys (single-letter to minimize overhead in the size-limited
+    push messages):
 
     "@" - the session ID (hex)
     "#" - the storage server message hash
     "n" - the namespace (integer)
     "l" - the byte length of the message data
     "B" - will be present and set to true if the message data was too long for inclusion in the
-          notification
+          notification, omitted otherwise.
 
     Both "l" and "B" will be omitted if the subscription opted out of data (i.e. if it passed
     `"data": false).
