@@ -80,11 +80,22 @@ identifier = com.loki-project.loki-messenger
 # Filename containing the APNS client certificate.  Required when using apns.
 cert_file = apns-cert.pem
 
-# Sandbox mode
-sandbox = 1
-
 # How many times we will attempt to re-send notification on failure
-retries = 3
+retries = 2
 
 # Interval (seconds) between retry attempts
-retry_interval = 10
+retry_interval = 3
+
+
+[notify-apns-sandbox]
+# Application identifier, aka "topic".  Required when using apns.
+identifier = com.loki-project.loki-messenger
+
+# Filename containing the APNS client certificate.  Required when using apns.
+cert_file = apns-sandbox-cert.pem
+
+# How many times we will attempt to re-send notification on failure
+retries = 0
+
+# Interval (seconds) between retry attempts
+retry_interval = 3

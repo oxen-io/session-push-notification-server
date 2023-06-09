@@ -69,8 +69,7 @@ def load_config():
     cp = configparser.ConfigParser()
     cp.read(conf_ini)
 
-    # Set log level up first (we'll set it again below, mainly to log it if we have debug logging
-    # enabled).
+    # Set log level up first so that it's here for the rest of the settings
     if "log" in cp.sections() and "level" in cp["log"]:
         coloredlogs.install(level=cp["log"]["level"], logger=logger)
 

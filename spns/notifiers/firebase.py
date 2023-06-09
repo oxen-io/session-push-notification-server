@@ -85,13 +85,16 @@ def push_notification(msg: Message):
 
 @warn_on_except
 def send_pending():
-    global notify_queue, queue_lock, firebase_app
+    global notify_queue, queue_lock, firebase_app, stats
     with queue_lock:
         queue, notify_queue = notify_queue, []
 
     i = 0
     while i < len(queue):
         results = messaging.send_all(messages=queue[i : i + MAX_NOTIFIES], app=firebase_app)
+        with stats.lock:
+            stats.notifies += min(len(queue) - i, MAX_NOTIFIES)
+
         # FIXME: process/reschedule failures?
 
         i += MAX_NOTIFIES

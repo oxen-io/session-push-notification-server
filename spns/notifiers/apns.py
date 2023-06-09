@@ -32,25 +32,22 @@
 # elements should be ignored).
 #
 
-from aioapns import APNs, NotificationRequest, PushType, PRIORITY_HIGH
+import aioapns
+import aioapns.logging
 import asyncio
 from threading import Lock
 from datetime import timedelta
 import json
 import signal
+import coloredlogs
 
 from .. import config
 from ..config import logger
 from ..core import SUBSCRIBE
-from .util import encrypt_payload, derive_notifier_key, warn_on_except, NotifyStats
+from .util import encrypt_notify_payload, derive_notifier_key, warn_on_except, NotifyStats
 
 import oxenc
 from oxenmq import OxenMQ, Message, Address, AuthLevel
-
-omq = None
-hivemind = None
-loop = None
-apns = None
 
 # The content of the `"aps"` field
 BASE_APS = {
@@ -70,86 +67,135 @@ SPNS_APNS_VERSION = 1
 # "too big" response instead.
 MAX_MSG_SIZE = 2500
 
-
-stats = NotifyStats()
-
-
-@warn_on_except
-def validate(msg: Message):
-    parts = msg.data()
-    if len(parts) != 2 or parts[0] != b"apns":
-        logger.warning("Internal error: invalid input to notifier.validate")
-        msg.reply(str(SUBSCRIBE.ERROR.value), "Internal error")
-        return
-
-    try:
-        data = json.loads(parts[1])
-
-        # We require just the device token, passed as `token`:
-        token = data["token"]
-        if not token or len(token) != 64:
-            raise ValueError(f"Invalid token: expected length-64 device token, not {len(token)}")
-        msg.reply("0", token)
-    except KeyError as e:
-        msg.reply(str(SUBSCRIBE.BAD_INPUT.value), f"Error: missing required key {e}")
-    except Exception as e:
-        msg.reply(str(SUBSCRIBE.ERROR.value), str(e))
+MAX_RETRIES = int(config.NOTIFY["apns"].get("retries", 1))
+RETRY_SLEEP = float(config.NOTIFY["apns"].get("retry_interval", 5))
 
 
-def make_notifier(request: NotificationRequest):
-    async def apns_notify():
-        global apns
-        max_retries = config.NOTIFY["apns"].get("retries", 0)
-        retry_sleep = config.NOTIFY["apns"].get("retry_interval", 10)
-        retries = max_retries
-        while True:
-            response = await apns.send_notification(request)
-            if response.is_successful:
-                with stats.lock:
-                    stats.notifies += 1
-                    if retries < max_retries:
-                        stats.notify_retries += 1
-                return
-            if retries > 0:
-                retries -= 1
-                await asyncio.sleep(retry_sleep)
-            else:
-                with stats.lock:
-                    stats.failures += 1
-                logger.warning(
-                    f"Failed to send notification: {response.status} ({response.description}); giving up after {max_retries} retries"
+coloredlogs.install(
+    milliseconds=True, isatty=True, level=logger.getEffectiveLevel(), logger=aioapns.logging.logger
+)
+
+
+class APNSHandler:
+    def __init__(self, loop, key, service_name, *, sandbox=False):
+        self.loop = loop
+        self.stats = NotifyStats()
+
+        self.omq = OxenMQ(pubkey=key.public_key.encode(), privkey=key.encode())
+
+        cat = self.omq.add_category("notifier", AuthLevel.basic)
+        cat.add_request_command("validate", self.validate)
+        cat.add_command("push", self.push_notification)
+
+        self.omq.add_timer(self.report_stats, timedelta(seconds=5))
+
+        self.omq.start()
+
+        self.hivemind = self.omq.connect_remote(
+            Address(config.config.hivemind_sock),
+            auth_level=AuthLevel.basic,
+            ephemeral_routing_id=False,
+        )
+
+        self.service_name = service_name
+        conf = config.NOTIFY[service_name]
+        self.apns = aioapns.APNs(
+            client_cert=conf["cert_file"], use_sandbox=sandbox, topic=conf["identifier"]
+        )
+
+        self.omq.send(self.hivemind, "admin.register_service", service_name)
+
+    @warn_on_except
+    def validate(self, msg: Message):
+        parts = msg.data()
+        if len(parts) != 2 or parts[0] != self.service_name.encode():
+            logger.warning("Internal error: invalid input to notifier.validate")
+            msg.reply(str(SUBSCRIBE.ERROR.value), "Internal error")
+            return
+
+        try:
+            data = json.loads(parts[1])
+
+            # We require just the device token, passed as `token`:
+            token = data["token"]
+            if not token or len(token) != 64:
+                raise ValueError(
+                    f"Invalid token: expected length-64 device token, not {len(token)}"
                 )
+            msg.reply("0", token)
+        except KeyError as e:
+            msg.reply(str(SUBSCRIBE.BAD_INPUT.value), f"Error: missing required key {e}")
+        except Exception as e:
+            msg.reply(str(SUBSCRIBE.ERROR.value), str(e))
 
-    return apns_notify
+    async def apns_notify(self, request: aioapns.NotificationRequest):
+        retries = MAX_RETRIES
+        while True:
+            logger.debug("sending notification")
+            response = await self.apns.send_notification(request)
+            if response.is_successful:
+                logger.warning("APNS notification was successful!")
+                with self.stats.lock:
+                    self.stats.notifies += 1
+                    if retries < MAX_RETRIES:
+                        self.stats.notify_retries += 1
+                return
+            if retries <= 0:
+                with self.stats.lock:
+                    self.stats.failures += 1
+                logger.warning(
+                    f"Failed to send notification: giving up after {MAX_RETRIES} retries"
+                )
+                return
+            logger.critical(
+                f"status: {response.status} ({type(response.status)}), desc: {response.description} ({type(response.description)})"
+            )
+            if response.status in (400, "400") and response.description == "BadDeviceToken":
+                with self.stats.lock:
+                    self.stats.failures += 1
+                logger.warning(f"Failed to send notification: invalid token; not retrying")
+                return
+            logger.debug(f"notification failed; will retry in {RETRY_SLEEP}s")
+            retries -= 1
+            await asyncio.sleep(RETRY_SLEEP)
 
+    @warn_on_except
+    def push_notification(self, msg: Message):
+        data = oxenc.bt_deserialize(msg.data()[0])
 
-@warn_on_except
-def push_notification(msg: Message):
-    data = oxenc.bt_deserialize(msg.data()[0])
+        enc_payload = encrypt_notify_payload(data, max_msg_size=MAX_MSG_SIZE)
 
-    enc_payload = encrypt_notify_payload(data, max_msg_size=MAX_MSG_SIZE)
+        device_token = data[b"&"].decode()  # unique service id, as we returned from validate
 
-    device_token = data[b"&"]  # unique service id, as we returned from validate
+        logger.warning(
+            f"Building APNS notification request for device {device_token}, message data: {data}"
+        )
+        self.loop.call_soon_threadsafe(
+            asyncio.ensure_future,
+            self.apns_notify(
+                aioapns.NotificationRequest(
+                    device_token=device_token,
+                    message={
+                        "aps": BASE_APS,
+                        "spns": SPNS_APNS_VERSION,
+                        "enc_payload": oxenc.to_base64(enc_payload),
+                    },
+                    priority=aioapns.PRIORITY_HIGH,
+                    push_type=aioapns.PushType.ALERT,
+                )
+            ),
+        )
 
-    request = NotificationRequest(
-        device_token=device_token,
-        message={
-            "aps": BASE_APS,
-            "spns": SPNS_APNS_VERSION,
-            "enc_payload": oxenc.to_base64(enc_payload),
-        },
-        priority=PRIORITY_HIGH,
-        push_type=PushType.ALERT,
-    )
+    @warn_on_except
+    def report_stats(self):
+        self.omq.send(
+            self.hivemind, "admin.service_stats", "apns", oxenc.bt_serialize(self.stats.collect())
+        )
 
-    global loop
-    asyncio.run_coroutine_threadsafe(make_notifier(request), loop)
-
-
-@warn_on_except
-def report_stats():
-    global stats, omq, hivemind
-    omq.send(hivemind, "admin.service_stats", "apns", oxenc.bt_serialize(stats.collect()))
+    def stop(self):
+        self.omq.disconnect(self.hivemind)
+        self.hivemind = None
+        self.omq = None
 
 
 def run():
@@ -160,38 +206,17 @@ def run():
     # restart/reconnect and receive messages sent while we where restarting.
     key = derive_notifier_key(__name__)
 
-    global omq, hivemind, loop, apns
-
     logger.info("Starting apns notifier")
 
     try:
-        omq = OxenMQ(pubkey=key.public_key.encode(), privkey=key.encode())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
-        cat = omq.add_category("notifier", AuthLevel.basic)
-        cat.add_request_command("validate", validate)
-        cat.add_command("push", push_notification)
-
-        omq.add_timer(report_stats, timedelta(seconds=5))
-
-        omq.start()
-
-        hivemind = omq.connect_remote(
-            Address(config.config.hivemind_sock),
-            auth_level=AuthLevel.basic,
-            ephemeral_routing_id=False,
-        )
-
-        conf = config.NOTIFY["apns"]
-        apns = APNs(
-            client_cert=conf["cert_file"],
-            use_sandbox=bool(config.looks_true(conf.get("use_sandbox"))),
-            topic=conf["identifier"],
-        )
-
-        omq.send(hivemind, "admin.register_service", "apns")
+        handler = APNSHandler(loop, key, "apns")
 
     except Exception as e:
         logger.critical(f"Failed to start up APNS notifier: {e}")
+        raise e
 
     logger.info("apns notifier started")
 
@@ -199,8 +224,6 @@ def run():
         raise OSError(f"Caught signal {signal.Signals(signum).name}")
 
     try:
-        loop = asyncio.new_event_loop()
-
         signal.signal(signal.SIGHUP, sig_die)
         signal.signal(signal.SIGINT, sig_die)
 
@@ -212,7 +235,4 @@ def run():
 
     logger.info("apns notifier shut down")
 
-    omq.disconnect(hivemind)
-    hivemind = None
-    omq = None
-    loop = None
+    handler.stop()
