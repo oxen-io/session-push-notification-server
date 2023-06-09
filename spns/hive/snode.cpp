@@ -224,14 +224,18 @@ void SNode::check_subs(
         if (fast && next > system_epoch)
             break;
 
-        if (!maybe_acct)
+        if (!maybe_acct) {
+            next_.pop_front();
             continue;  // lazy deletion; ignore this entry
+        }
 
         const auto& acct = *maybe_acct;
 
         auto subs = all_subs.find(acct);
-        if (subs == all_subs.end())
+        if (subs == all_subs.end()) {
+            next_.pop_front();
             continue;
+        }
 
         std::vector<char> buf;
         for (const auto& sub : subs->second) {
