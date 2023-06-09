@@ -846,6 +846,9 @@ void HiveMind::on_notifier_validation(
     } catch (const hive::subscribe_error& e) {
         code = e.numeric_code();
         message = e.what();
+    } catch (const hive::signature_verify_failure& e) {
+        code = static_cast<int>(hive::SUBSCRIBE::ERROR);
+        message = e.what();
     } catch (const std::exception& e) {
         code = static_cast<int>(hive::SUBSCRIBE::ERROR);
         log::warning(cat, "Exception encountered during sub/unsub handling: {}", e.what());
@@ -912,7 +915,7 @@ void HiveMind::on_subscribe(oxenmq::Message& m) {
 
         auto reply_handler = [this,
                               service = service,
-                              sub = std::make_shared<hive::Subscription>(
+                              sub = std::make_shared<hive::Subscription>(  // Throws on bad sig
                                       pubkey,
                                       std::move(subkey_tag),
                                       args.at("namespaces").get<std::vector<int16_t>>(),
@@ -993,10 +996,10 @@ void HiveMind::on_unsubscribe(oxenmq::Message& m) {
                 conn, "notifier.validate", std::move(reply_handler), service, service_info.dump());
 
     } catch (const nlohmann::json::exception&) {
-        log::debug(cat, "Subscription failed: bad json");
+        log::debug(cat, "Unsubscription failed: bad json");
         error = {hive::SUBSCRIBE::BAD_INPUT, "Invalid JSON"};
     } catch (const std::out_of_range& e) {
-        log::debug(cat, "Sub failed: missing param {}", e.what());
+        log::debug(cat, "Unsub failed: missing param {}", e.what());
         error = {hive::SUBSCRIBE::BAD_INPUT, "Missing required parameter"};
     } catch (const hive::subscribe_error& e) {
         error = {e.code, e.what()};
@@ -1408,9 +1411,6 @@ bool HiveMind::add_subscription(
         std::optional<std::string> service_data,
         EncKey enc_key,
         hive::Subscription sub) {
-
-    // hive::Subscription sub{pubkey, std::forward<Args>(args)...};
-    //  sub = Subscription(pk, **kwargs)
 
     bool new_sub = false, insert_ns = false;
 
