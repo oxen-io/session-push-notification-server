@@ -8,9 +8,10 @@ class Device:
         PUBKEY = 'pubKey'
         TOKEN = 'token'
         DEVICE_TYPE = 'device'
+        LEGACY_GROUPS_ONLY = 'legacy_groups_only'
 
     TABLE = 'token_pubkey_table'
-    COLUMNS = [Column.PUBKEY, Column.TOKEN, Column.DEVICE_TYPE]
+    COLUMNS = [Column.PUBKEY, Column.TOKEN, Column.DEVICE_TYPE, Column.LEGACY_GROUPS_ONLY]
     CREATE_TABLE = (
         f'CREATE TABLE IF NOT EXISTS {TABLE} ('
         f'  {Column.PUBKEY} TEXT NOT NULL,'
@@ -20,6 +21,10 @@ class Device:
     INSERT_DEVICE_TOKEN = (
         f'ALTER TABLE {TABLE}'
         f' ADD {Column.DEVICE_TYPE} TEXT'
+    )
+    INSERT_FLAG = (
+        f'ALTER TABLE {TABLE}'
+        f' ADD {Column.LEGACY_GROUPS_ONLY} BOOL DEFAULT 0 NOT NULL '
     )
 
     class Token:
@@ -38,9 +43,10 @@ class Device:
         def __hash__(self):
             return str(self.value).__hash__()
 
-    def __init__(self, session_id=None):
+    def __init__(self, session_id=None, legacy_groups_only=False):
         self.session_id = session_id
         self.tokens = set()
+        self.legacy_groups_only = legacy_groups_only
         self.needs_to_be_updated = False
 
     def to_database_rows(self):
@@ -52,7 +58,7 @@ class Device:
             if isinstance(token.device_type, str):
                 LokiLogger().logger.error("Device_Type is String.")
                 continue
-            rows.append((self.session_id, token.value, token.device_type.value))
+            rows.append((self.session_id, token.value, token.device_type.value, self.legacy_groups_only))
         self.needs_to_be_updated = False
         return rows
 

@@ -78,6 +78,24 @@ def unregister(args):
         raise Exception(HTTP.Response.PARA_MISSING)
 
 
+def register_legacy_groups_only(args):
+    device_token = None
+    session_id = None
+    closed_group_ids = []
+    if HTTP.RegistrationRequest.TOKEN in args:
+        device_token = args[HTTP.RegistrationRequest.TOKEN]
+    if HTTP.RegistrationRequest.PUBKEY in args:
+        session_id = args[HTTP.RegistrationRequest.PUBKEY]
+    if HTTP.RegistrationRequest.DEVICE_TYPE in args:
+        device_type = DeviceType(args[HTTP.RegistrationRequest.DEVICE_TYPE])
+    else:
+        device_type = DeviceType.iOS if is_ios_device_token(device_token) else DeviceType.Android
+
+    if HTTP.SubscriptionRequest.CLOSED_GROUPS in args:
+        closed_group_ids = args[HTTP.SubscriptionRequest.CLOSED_GROUPS]
+
+
+
 def subscribe_closed_group(args):
     closed_group_id = None
     session_id = None
@@ -130,6 +148,7 @@ def notify(args):
 
 Routing = {'register': register_v2,
            'unregister': unregister,
+           'register_legacy_groups_only': register_legacy_groups_only,
            'subscribe_closed_group': subscribe_closed_group,
            'unsubscribe_closed_group': unsubscribe_closed_group,
            'notify': notify}
