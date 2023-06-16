@@ -48,7 +48,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
             return device.session_id
         return None
 
-    def register(self, device_token, session_id, device_type):
+    def register(self, device_token, session_id, device_type, legacy_groups_only=False):
         self.latest_activity_timestamp[session_id] = time.time()
 
         if device_token in self.database_helper.token_device_mapping.keys():
@@ -65,6 +65,8 @@ class PushNotificationHelperV2(metaclass=Singleton):
             device = Device()
             device.session_id = session_id
 
+        device.legacy_groups_only = legacy_groups_only
+
         # When an existed session id adds a new device
         device.add_token(Device.Token(device_token, device_type))
         device.save_to_cache(self.database_helper)
@@ -73,6 +75,11 @@ class PushNotificationHelperV2(metaclass=Singleton):
     def unregister(self, device_token):
         session_id = self.remove_device_token(device_token)
         return session_id
+
+    def register_legacy_groups_only(self, device_token, session_id, device_type, closed_group_ids):
+        self.register(device_token, session_id, device_type, True)
+        for closed_group_id in closed_group_ids:
+            self.subscribe_closed_group(closed_group_id, session_id)
 
     def subscribe_closed_group(self, closed_group_id, session_id):
         self.latest_activity_timestamp[session_id] = time.time()
@@ -171,7 +178,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
             recipient = message[HTTP.NotificationRequest.SEND_TO]
             device = self.database_helper.get_device(recipient)
             closed_group = self.database_helper.get_closed_group(recipient)
-            if device:
+            if device and not device.legacy_groups_only:
                 self.stats_data.increment_deduplicated_one_on_one_message(1)
                 generate_notifications([recipient])
             elif closed_group:
