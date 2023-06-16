@@ -76,6 +76,11 @@ class Device:
             self.tokens.remove(token_type)
             self.needs_to_be_updated = True
 
+    def update_legacy_groups_only(self, legacy_groups_only):
+        if self.legacy_groups_only != legacy_groups_only:
+            self.legacy_groups_only = legacy_groups_only
+            self.needs_to_be_updated = True
+
     def save_to_cache(self, db_helper):
         db_helper.device_cache[self.session_id] = self
         for token in self.tokens:

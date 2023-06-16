@@ -54,6 +54,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
         if device_token in self.database_helper.token_device_mapping.keys():
             device = self.database_helper.token_device_mapping[device_token]
             if device.session_id == session_id:
+                device.update_legacy_groups_only(legacy_groups_only)
                 return
             else:
                 self.remove_device_token(device_token)
@@ -65,7 +66,7 @@ class PushNotificationHelperV2(metaclass=Singleton):
             device = Device()
             device.session_id = session_id
 
-        device.legacy_groups_only = legacy_groups_only
+        device.update_legacy_groups_only(legacy_groups_only)
 
         # When an existed session id adds a new device
         device.add_token(Device.Token(device_token, device_type))

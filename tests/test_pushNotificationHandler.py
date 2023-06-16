@@ -100,6 +100,32 @@ class PushNotificationHandlerTests(unittest.TestCase):
         test_device_in_cache = self.database_helper.get_device(TEST_SESSION_ID)
         self.assertFalse(Device.Token(TEST_TOKEN_0, TEST_DEVICE_TYPE) in test_device_in_cache.tokens)
 
+    def test_6_register_legacy_groups_only(self):
+        self.PN_helper_v2.register(TEST_TOKEN_0, TEST_SESSION_ID, TEST_DEVICE_TYPE)
+        test_device_in_cache = self.database_helper.get_device(TEST_SESSION_ID)
+        self.assertFalse(test_device_in_cache.legacy_groups_only)
+
+        self.PN_helper_v2.register_legacy_groups_only(TEST_TOKEN_0, TEST_SESSION_ID, TEST_DEVICE_TYPE, [TEST_CLOSED_GROUP_ID])
+        test_device_in_cache = self.database_helper.get_device(TEST_SESSION_ID)
+        self.assertTrue(test_device_in_cache.legacy_groups_only)
+
+        test_message = {'send_to': TEST_SESSION_ID,
+                        'data': TEST_DATA}
+        self.PN_helper_v2.add_message_to_queue(test_message)
+        loop = asyncio.get_event_loop()
+        coroutine = self.PN_helper_v2.send_push_notification()
+        loop.run_until_complete(coroutine)
+        self.assertEqual(self.PN_helper_v2.stats_data.notification_counter_android, 0)
+
+        test_closed_group_message = {'send_to': TEST_CLOSED_GROUP_ID,
+                                     'data': TEST_DATA}
+        self.PN_helper_v2.add_message_to_queue(test_closed_group_message)
+        loop = asyncio.get_event_loop()
+        coroutine = self.PN_helper_v2.send_push_notification()
+        loop.run_until_complete(coroutine)
+        self.assertEqual(self.PN_helper_v2.stats_data.closed_group_messages, 1)
+        self.assertEqual(self.PN_helper_v2.stats_data.notification_counter_android, 1)
+
 
 if __name__ == '__main__':
     unittest.main()
