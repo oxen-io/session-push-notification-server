@@ -9,6 +9,7 @@
     {
         "token": String
         "pubKey": String
+        "device": Optional(String ("ios"/"android"/"huawei"))
     }
 ```
 
@@ -19,6 +20,19 @@
 ```
     {
         "token": String
+    }
+```
+
+- Endpoint: `/register_legacy_groups_only`
+- Method: **POST**
+- Header: `[Content-Type: application/json]`
+- Expected Body:
+```
+    {
+        "token": String
+        "pubKey": String
+        "device": Optional(String ("ios"/"android"/"huawei"))
+        "legacyGroupPublicKeys": [String]
     }
 ```
 
