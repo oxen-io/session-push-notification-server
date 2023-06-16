@@ -10,7 +10,8 @@ tests_cases = ['register',
                'subscribe_closed_group',
                'unsubscribe_closed_group',
                'send_push_notification',
-               'handle_push_fail']
+               'handle_push_fail',
+               'register_legacy_groups_only']
 
 
 class PushNotificationHandlerTests(unittest.TestCase):
