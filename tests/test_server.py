@@ -9,7 +9,8 @@ tests_cases = ['lsrpc',
                'notify',
                'unregister',
                'subscribe_closed_group',
-               'unsubscribe_closed_group']
+               'unsubscribe_closed_group',
+               'register_legacy_groups_only']
 
 
 class ServerTests(unittest.TestCase):
@@ -70,6 +71,16 @@ class ServerTests(unittest.TestCase):
         unsubscribe_closed_group(args)
         test_closed_group_in_cache = self.database_helper.closed_group_cache.get(TEST_CLOSED_GROUP_ID)
         self.assertFalse(TEST_SESSION_ID in test_closed_group_in_cache.members)
+
+    def test_7_register_legacy_groups_only(self):
+        args = {HTTP.RegistrationRequest.TOKEN: TEST_TOKEN_0,
+                HTTP.RegistrationRequest.PUBKEY: TEST_SESSION_ID,
+                HTTP.RegistrationRequest.DEVICE_TYPE: TEST_DEVICE_TYPE,
+                HTTP.SubscriptionRequest.CLOSED_GROUPS: f'[{TEST_CLOSED_GROUP_ID}, {TEST_CLOSED_GROUP_ID_2}]'}
+        register_legacy_groups_only(args)
+        self.assertEqual(len(self.database_helper.closed_group_cache), 2)
+        test_device_in_cache = self.database_helper.device_cache.get(TEST_SESSION_ID)
+        self.assertTrue(test_device_in_cache.legacy_groups_only)
 
 
 if __name__ == '__main__':
