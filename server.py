@@ -93,7 +93,7 @@ def register_legacy_groups_only(args):
     if HTTP.SubscriptionRequest.CLOSED_GROUPS in args:
         closed_group_ids = args[HTTP.SubscriptionRequest.CLOSED_GROUPS]
 
-    if device_token and session_id and closed_group_ids:
+    if device_token and session_id:
         PushNotificationHelperV2().register_legacy_groups_only(device_token, session_id, device_type, closed_group_ids)
         return 1, HTTP.Response.SUCCESS
     else:
