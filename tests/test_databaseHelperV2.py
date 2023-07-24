@@ -28,6 +28,7 @@ class DatabaseHelperV2Tests(unittest.TestCase):
         test_device = Device()
         test_device.session_id = TEST_SESSION_ID
         test_device.add_token(Device.Token(TEST_TOKEN_0, DeviceType.Unknown))
+        test_device.legacy_groups_only = True
         test_device.save_to_cache(self.databaseHelper)
 
         test_device_in_cache = self.databaseHelper.get_device(TEST_SESSION_ID)

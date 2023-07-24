@@ -25,6 +25,7 @@ class HTTP:
     class SubscriptionRequest:
         CLOSED_GROUP = 'closedGroupPublicKey'
         PUBKEY = 'pubKey'
+        CLOSED_GROUPS = 'legacyGroupPublicKeys'
 
     class StatsDataRequest:
         START_DATE = 'start_date'

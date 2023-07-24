@@ -19,7 +19,7 @@ class DatabaseHelperV2(metaclass=Singleton):
         self.token_device_mapping = {}  # {token: Device}
         self.closed_group_cache = {}  # {closed_group_id: ClosedGroup}
         self.create_tables_if_needed()
-        self.migration_device_type()
+        self.migration()
         self.populate_cache()
 
     # Database backup
@@ -66,6 +66,21 @@ class DatabaseHelperV2(metaclass=Singleton):
         cursor.close()
         db_connection.close()
 
+    def migration_flag(self):
+        db_connection = sqlite3.connect(self.database)
+        cursor = db_connection.cursor()
+        try:
+            cursor.execute(Device.INSERT_FLAG)
+            db_connection.commit()
+        except Exception as e:
+            self.logger.error(e)
+        cursor.close()
+        db_connection.close()
+
+    def migration(self):
+        self.migration_device_type()
+        self.migration_flag()
+
     def populate_cache(self):
         db_connection = sqlite3.connect(self.database)
         cursor = db_connection.cursor()
@@ -78,7 +93,8 @@ class DatabaseHelperV2(metaclass=Singleton):
             session_id = row[0]
             device_type = DeviceType(row[2]) if row[2] is not None else None
             token = Device.Token(row[1], device_type)
-            device = self.get_device(session_id) or Device(session_id)
+            legacy_groups_only = bool(row[3]) if row[3] is not None else False
+            device = self.get_device(session_id) or Device(session_id, legacy_groups_only)
             device.tokens.add(token)  # Won't trigger needs_to_be_updated
             self.device_cache[session_id] = device
             self.token_device_mapping[token.value] = device
