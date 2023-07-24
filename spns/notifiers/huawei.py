@@ -6,7 +6,6 @@ from ..core import SUBSCRIBE
 from .util import encrypt_notify_payload, derive_notifier_key, warn_on_except, NotifyStats
 
 from hms.src import push_admin
-from hms.src.push_admin._app import ApiCallError
 from hms.src.push_admin import messaging as huawei_messaging
 
 import oxenc
@@ -28,7 +27,7 @@ queue_timer = None
 
 # Whenever we add/change fields we increment this so that a Session client could figure out what it
 # is speaking to:
-SPNS_FIREBASE_VERSION = 1
+SPNS_HUAWEI_VERSION = 1
 
 # If our JSON payload hits 4000 bytes then Huawei will reject it, so we limit ourselves to this size
 # *before* encryption + base64 encoding.  If the source message exceeds this, we send an alternative
@@ -45,7 +44,7 @@ stats = NotifyStats()
 @warn_on_except
 def validate(msg: Message):
     parts = msg.data()
-    if len(parts) != 2 or parts[0] != b"firebase":
+    if len(parts) != 2 or parts[0] != b"huawei":
         logger.warning("Internal error: invalid input to notifier.validate")
         msg.reply(str(SUBSCRIBE.ERROR.value), "Internal error")
         return
@@ -56,7 +55,7 @@ def validate(msg: Message):
         # We require just the device token, passed as `token`:
         token = data["token"]
         if not token:
-            raise ValueError(f"Invalid firebase device token")
+            raise ValueError(f"Invalid huawei device token")
         msg.reply("0", token)
     except KeyError as e:
         msg.reply(str(SUBSCRIBE.BAD_INPUT.value), f"Error: missing required key {e}")
@@ -73,7 +72,7 @@ def push_notification(msg: Message):
     device_token = data[b"&"].decode()  # unique service id, as we returned from validate
 
     msg = huawei_messaging.Message(
-        data={"enc_payload": oxenc.to_base64(enc_payload), "spns": f"{SPNS_FIREBASE_VERSION}"},
+        data={"enc_payload": oxenc.to_base64(enc_payload), "spns": f"{SPNS_HUAWEI_VERSION}"},
         token=device_token,
         android=huawei_messaging.AndroidConfig(urgency=huawei_messaging.AndroidConfig.HIGH_PRIORITY),
     )
