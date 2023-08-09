@@ -73,7 +73,7 @@ def push_notification(msg: Message):
 
     msg = huawei_messaging.Message(
         data=json.dumps({"enc_payload": oxenc.to_base64(enc_payload), "spns": f"{SPNS_HUAWEI_VERSION}"}),
-        token=device_token,
+        token=[device_token],
         android=huawei_messaging.AndroidConfig(urgency=huawei_messaging.AndroidConfig.HIGH_PRIORITY),
     )
 
