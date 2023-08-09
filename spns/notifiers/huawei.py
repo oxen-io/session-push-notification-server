@@ -72,7 +72,7 @@ def push_notification(msg: Message):
     device_token = data[b"&"].decode()  # unique service id, as we returned from validate
 
     msg = huawei_messaging.Message(
-        data={"enc_payload": oxenc.to_base64(enc_payload), "spns": f"{SPNS_HUAWEI_VERSION}"},
+        data=json.dumps({"enc_payload": oxenc.to_base64(enc_payload), "spns": f"{SPNS_HUAWEI_VERSION}"}),
         token=device_token,
         android=huawei_messaging.AndroidConfig(urgency=huawei_messaging.AndroidConfig.HIGH_PRIORITY),
     )
