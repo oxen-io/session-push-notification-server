@@ -135,7 +135,7 @@ class APNSHandler:
             logger.debug("sending notification")
             response = await self.apns.send_notification(request)
             if response.is_successful:
-                logger.warning("APNS notification was successful!")
+                logger.debug("APNS notification was successful!")
                 with self.stats.lock:
                     self.stats.notifies += 1
                     if retries < MAX_RETRIES:
@@ -168,7 +168,7 @@ class APNSHandler:
 
         device_token = data[b"&"].decode()  # unique service id, as we returned from validate
 
-        logger.warning(
+        logger.debug(
             f"Building APNS notification request for device {device_token}, message data: {data}"
         )
         self.loop.call_soon_threadsafe(
