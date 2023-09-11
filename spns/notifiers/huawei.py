@@ -90,7 +90,7 @@ def send_pending():
 
     i = 0
     while i < len(queue):
-        result = huawei_messaging.send_message(queue[i])
+        result = huawei_messaging.send_message(queue[i], verify_peer=True)
         with stats.lock:
             stats.notifies += 1
 
