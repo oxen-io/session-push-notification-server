@@ -95,6 +95,12 @@ PYBIND11_MODULE(core, m) {
                     },
                     "how long, in milliseconds, after initialization to wait for notifier servers "
                     "to register themselves with the HiveMind instance")
+            .def_readwrite(
+                    "notifiers_expected",
+                    &Config::notifiers_expected,
+                    "Set of notification services that we expect; if non-empty then we will stop "
+                    "the `notifier_wait` time early once we have registered notifiers for all the "
+                    "values set here.")
             .def_property(
                     "subs_interval",
                     [](Config& self) { return self.subs_interval.count(); },

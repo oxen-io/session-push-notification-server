@@ -43,6 +43,12 @@ filter_lifetime = 300
 # we subscribe (and start receiving) message notifications.
 startup_wait = 8.0
 
+# Comma-separate list of expected notifier names; if non-empty then while starting up, the
+# `startup_wait` timer becomes a maximum wait time: we start up as soon as the timer is reached *or*
+# we have received notifier registrations for all the notifiers listed here.  (Note that even when
+# this is set other notifiers can still register, they just aren't required for startup to proceed).
+#notifiers_expected = apns,firebase
+
 
 [keys]
 

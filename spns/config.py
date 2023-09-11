@@ -103,6 +103,11 @@ def load_config():
             "max_connects": ("max_pending_connects", None, int),
             "filter_lifetime": ("filter_lifetime", None, int),
             "startup_wait": ("notifier_wait", None, lambda x: round(1000 * float(x))),
+            "notifiers_expected": (
+                "notifiers_expected",
+                None,
+                lambda x: set(z for z in (y.strip() for y in x.split(",")) if z),
+            ),
             "listen": ("hivemind_sock", lambda x: re.search("^(?:tcp|ipc)://.", x)),
             "listen_curve": ("hivemind_curve", lambda x: re.search("^tcp://.", x)),
             "listen_curve_admin": (
