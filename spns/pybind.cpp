@@ -58,9 +58,12 @@ PYBIND11_MODULE(core, m) {
 
     py::class_<Config>{m, "Config"}
             .def(py::init<>())
-            .def_readwrite(
+            .def_property(
                     "oxend_rpc",
-                    &Config::oxend_rpc,
+                    [](Config& self) { return self.oxend_rpc.full_address(); },
+                    [](Config& self, std::string addr) {
+                        self.oxend_rpc = oxenmq::address{std::move(addr)};
+                    },
                     "oxenmq address of the companion oxend RPC to use")
             .def_readwrite("pg_connect", &Config::pg_connect, "postgresql connection URL")
             .def_readwrite(

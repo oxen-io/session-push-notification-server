@@ -115,11 +115,7 @@ def load_config():
                 lambda x: re.search("^(?:[a-fA-F0-9]{64}\s+)*[a-fA-F0-9]{64}\s*$", x),
                 lambda x: set(bytes.fromhex(y) for y in x.split() if y),
             ),
-            "oxend_rpc": (
-                "oxend_rpc",
-                lambda x: re.search("^(?:tcp|ipc|curve)://.", x),
-                lambda x: oxenmq.Address(x),
-            ),
+            "oxend_rpc": ("oxend_rpc", lambda x: re.search("^(?:tcp|ipc|curve)://.", x)),
         },
     }
 
