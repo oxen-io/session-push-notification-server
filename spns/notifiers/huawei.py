@@ -100,8 +100,9 @@ def send_pending():
 
 
 @warn_on_except
-def report_stats():
+def ping():
     global omq, hivemind, stats
+    omq.send(hivemind, "admin.register_service", "huawei")
     omq.send(hivemind, "admin.service_stats", "huawei", oxenc.bt_serialize(stats.collect()))
 
 
@@ -121,7 +122,7 @@ def start():
     cat.add_request_command("validate", validate)
     cat.add_command("push", push_notification)
 
-    omq.add_timer(report_stats, datetime.timedelta(seconds=5))
+    omq.add_timer(ping, datetime.timedelta(seconds=5))
 
     conf = config.NOTIFY["huawei"]
     queue_timer = omq.add_timer(
@@ -158,7 +159,7 @@ def disconnect(flush_pending=True):
 
 
 def run(startup_delay=4.0):
-    """Runs the firebase notifier, forever."""
+    """Runs the huawei notifier, forever."""
 
     global omq
 

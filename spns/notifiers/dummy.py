@@ -65,7 +65,7 @@ def push_notification(msg: Message):
 
 
 @warn_on_except
-def report_stats():
+def ping():
     global omq, hivemind, stats_lock, notifies, failures
     with stats_lock:
         report = {"+notifies": notifies, "+failures": failures}
@@ -90,7 +90,7 @@ def connect_to_hivemind():
     cat.add_request_command("validate", validate)
     cat.add_command("push", push_notification)
 
-    omq.add_timer(report_stats, timedelta(seconds=5))
+    omq.add_timer(ping, timedelta(seconds=5))
 
     omq.start()
 

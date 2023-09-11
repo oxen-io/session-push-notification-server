@@ -101,8 +101,10 @@ def send_pending():
 
 
 @warn_on_except
-def report_stats():
+def ping():
+    """Makes sure we are registered and reports updated stats to hivemind; called every few seconds"""
     global omq, hivemind, stats
+    omq.send(hivemind, "admin.register_service", "firebase")
     omq.send(hivemind, "admin.service_stats", "firebase", oxenc.bt_serialize(stats.collect()))
 
 
@@ -122,7 +124,7 @@ def start():
     cat.add_request_command("validate", validate)
     cat.add_command("push", push_notification)
 
-    omq.add_timer(report_stats, datetime.timedelta(seconds=5))
+    omq.add_timer(ping, datetime.timedelta(seconds=5))
 
     conf = config.NOTIFY["firebase"]
     queue_timer = omq.add_timer(

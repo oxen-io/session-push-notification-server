@@ -88,7 +88,7 @@ class APNSHandler:
         cat.add_request_command("validate", self.validate)
         cat.add_command("push", self.push_notification)
 
-        self.omq.add_timer(self.report_stats, timedelta(seconds=5))
+        self.omq.add_timer(self.ping, timedelta(seconds=5))
 
         self.omq.start()
 
@@ -188,7 +188,9 @@ class APNSHandler:
         )
 
     @warn_on_except
-    def report_stats(self):
+    def ping(self):
+        """Makes sure we are registered and reports updated stats to hivemind; called every few seconds"""
+        self.omq.send(self.hivemind, "admin.register_service", "apns")
         self.omq.send(
             self.hivemind, "admin.service_stats", "apns", oxenc.bt_serialize(self.stats.collect())
         )
@@ -200,7 +202,7 @@ class APNSHandler:
 
 
 def run(startup_delay=4.0):
-    """Runs the asyncio event loop, forever."""
+    """Runs the apns asyncio event loop, forever."""
 
     # These do not and *should* not match hivemind or any other notifier: that is, each notifier
     # needs its own unique keypair.  We do, however, want it to persist so that we can
