@@ -157,10 +157,14 @@ def disconnect(flush_pending=True):
         send_pending()
 
 
-def run():
+def run(startup_delay=4.0):
     """Runs the firebase notifier, forever."""
 
     global omq
+
+    if startup_delay > 0:
+        time.sleep(startup_delay)
+
     logger.info("Starting huawei notifier")
     try:
         start()

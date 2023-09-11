@@ -37,6 +37,7 @@ import aioapns.logging
 import asyncio
 from threading import Lock
 from datetime import timedelta
+import time
 import json
 import signal
 import coloredlogs
@@ -198,13 +199,16 @@ class APNSHandler:
         self.omq = None
 
 
-def run():
+def run(startup_delay=4.0):
     """Runs the asyncio event loop, forever."""
 
     # These do not and *should* not match hivemind or any other notifier: that is, each notifier
     # needs its own unique keypair.  We do, however, want it to persist so that we can
     # restart/reconnect and receive messages sent while we where restarting.
     key = derive_notifier_key(__name__)
+
+    if startup_delay > 0:
+        time.sleep(startup_delay)
 
     logger.info("Starting apns notifier")
 
