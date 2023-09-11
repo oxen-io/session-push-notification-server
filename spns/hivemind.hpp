@@ -197,9 +197,8 @@ class HiveMind {
 
     void on_get_stats(oxenmq::Message& m);
 
-    int stats_logged = 0;
-    oxenmq::TimerID stats_timer;
-    void log_stats();
+    std::chrono::steady_clock::time_point last_stats_logged = std::chrono::steady_clock::now() - 1h;
+    void log_stats(std::string_view pre_cmd = "WATCHDOG=1"sv);
 
     using UnsubData = std::tuple<Signature, std::optional<SubkeyTag>, int64_t>;
     void on_notifier_validation(

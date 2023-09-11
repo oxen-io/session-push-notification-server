@@ -6,7 +6,9 @@
 #include <oxenc/bt_serialize.h>
 #include <oxenmq/batch.h>
 #include <spdlog/common.h>
+#include <systemd/sd-daemon.h>
 
+#include <chrono>
 #include <nlohmann/json.hpp>
 #include <oxen/log.hpp>
 #include <set>
@@ -44,6 +46,8 @@ HiveMind::HiveMind(Config conf_in) :
              omq_log} {
 
     fiddle_rlimit_nofile();
+
+    sd_notify(0, "STATUS=Initializing OxenMQ");
 
     omq_.log_level(
             oxenmq::LogLevel::debug);  // Get everything (except trace) and let our logger filter it
@@ -206,17 +210,21 @@ HiveMind::HiveMind(Config conf_in) :
             // end of "admin." commands
             ;
 
+    sd_notify(0, "STATUS=Cleaning database");
     db_cleanup();
+    sd_notify(0, "STATUS=Loading existing subscriptions");
     load_saved_subscriptions();
 
     {
         std::lock_guard lock{mutex_};
 
+        sd_notify(0, "STATUS=Starting OxenMQ");
         log::info(cat, "Starting OxenMQ");
         omq_.start();
 
         log::info(cat, "Started OxenMQ");
 
+        sd_notify(0, "STATUS=Connecting to oxend");
         log::info(cat, "Connecting to oxend @ {}", config.oxend_rpc.full_address());
 
         std::promise<void> prom;
@@ -257,6 +265,8 @@ HiveMind::HiveMind(Config conf_in) :
         prom.get_future().get();
         log::info(cat, "Connected to oxend");
 
+        sd_notify(0, "STATUS=Waiting for notifiers");
+
         if (config.notifier_wait > 0s) {
             // Wait for notification servers that start up before or alongside us to connect:
             auto wait_until = steady_clock::now() + config.notifier_wait;
@@ -278,19 +288,19 @@ HiveMind::HiveMind(Config conf_in) :
 
     refresh_sns();
 
-    log::info(cat, "Startup complete");
-
     omq_.add_timer([this] { db_cleanup(); }, 30s);
     // This is for operations that can be high latency, like re-subscriptions, clearing expiries,
     // etc.:
     omq_.add_timer([this] { subs_slow(); }, config.subs_interval);
 
-    // We start this out at 15s, but after a minute reschedule it to every 10min.
-    stats_timer = omq_.add_timer([this] { log_stats(); }, 15s);
+    // For updating systemd Status line
+    omq_.add_timer([this] { log_stats(); }, 15s);
 
     // This one is much more frequent: it handles any immediate subscription duties (e.g. to
     // deal with a new subscriber we just added):
     omq_.add_timer([this] { subs_fast(); }, 100ms);
+
+    log::info(cat, "Startup complete");
 }
 
 bool HiveMind::notifier_startup_done(const steady_time& wait_until) {
@@ -300,7 +310,6 @@ bool HiveMind::notifier_startup_done(const steady_time& wait_until) {
     // so return early:
     std::vector<std::string_view> missing;
     if (!config.notifiers_expected.empty()) {
-        bool good = true;
         for (const auto& service : config.notifiers_expected) {
             if (!services_.count(service))
                 missing.emplace_back(service);
@@ -332,6 +341,7 @@ void HiveMind::set_ready() {
         std::lock_guard lock{deferred_mutex_};
         ready = true;
     }
+    log_stats("READY=1");
 
     while (!deferred_.empty()) {
         std::move(deferred_.front())();
@@ -727,7 +737,7 @@ void HiveMind::on_get_stats(oxenmq::Message& m) {
     m.send_reply(get_stats_json().dump());
 }
 
-void HiveMind::log_stats() {
+void HiveMind::log_stats(std::string_view pre_cmd) {
     auto s = get_stats_json();
 
     std::list<std::string> notifiers;
@@ -742,10 +752,8 @@ void HiveMind::log_stats() {
         if (auto it = data.find("notifies"); it != data.end())
             total_notifies += it->get<int64_t>();
 
-    log::info(
-            stats,
-            "SN conns: {}/{} ({} pending); Height: {}; Accts/Subs: {}/{}; svcs: {}; "
-            "notifies: {}",
+    auto stat_line = fmt::format(
+            "SN conns: {}/{} ({} pending); Height: {}; Accts/Subs: {}/{}; svcs: {}; notifies: {}",
             s["connections"].get<int>(),
             s["snodes"].get<int>(),
             s["pending_connections"].get<int>(),
@@ -755,10 +763,14 @@ void HiveMind::log_stats() {
             "{}"_format(fmt::join(notifiers, ", ")),
             total_notifies);
 
-    // Print this on the default 30s interval for a couple minutes, then switch it to a 10min timer:
-    if (++stats_logged == 4) {
-        omq_.cancel_timer(stats_timer);
-        stats_timer = omq_.add_timer([this] { log_stats(); }, 10min);
+    auto sd_format = pre_cmd.empty() ? "STATUS={1}" : "{0}\nSTATUS={1}";
+    sd_notify(0, fmt::format(sd_format, pre_cmd, stat_line).c_str());
+
+    if (auto now = std::chrono::steady_clock::now(); now - last_stats_logged >= 4min + 55s) {
+        log::info(stats, "Status: {}", stat_line);
+        last_stats_logged = now;
+    } else {
+        log::debug(stats, "Status: {}", stat_line);
     }
 }
 

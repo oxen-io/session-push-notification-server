@@ -7,6 +7,7 @@ import json
 import traceback
 import time
 import signal
+import systemd.daemon
 from .util import derive_notifier_key, warn_on_except
 from .. import config
 from ..config import logger
@@ -19,6 +20,8 @@ hivemind = None
 stats_lock = Lock()
 notifies = 0  # Total successful notifications
 failures = 0  # Failed notifications (i.e. neither first attempt nor retries worked)
+total_notifies = 0
+total_failures = 0
 
 
 @warn_on_except
@@ -66,21 +69,26 @@ def push_notification(msg: Message):
 
 @warn_on_except
 def ping():
-    global omq, hivemind, stats_lock, notifies, failures
+    global omq, hivemind, stats_lock, notifies, failures, total_notifies, total_failures
     with stats_lock:
         report = {"+notifies": notifies, "+failures": failures}
+        total_notifies += notifies
+        total_failures += failures
         notifies, failures = 0, 0
 
     logger.debug(f"dummy re-registering and reporting stats {report}")
     omq.send(hivemind, "admin.register_service", "dummy")
     omq.send(hivemind, "admin.service_stats", "dummy", oxenc.bt_serialize(report))
+    systemd.daemon.notify(
+        f"WATCHDOG=1\nSTATUS=Running; {total_notifies} notifications, {total_failures} failures"
+    )
 
 
 def connect_to_hivemind():
     # These do not and *should* not match hivemind or any other notifier: that is, each notifier
     # needs its own unique keypair.  We do, however, want it to persist so that we can
     # restart/reconnect and receive messages sent while we where restarting.
-    key = derive_notifier_key(__name__)
+    key = derive_notifier_key("dummy")
 
     global omq, hivemind
 
@@ -109,13 +117,17 @@ def disconnect():
         omq = None
 
 
-def run():
-    """Entry point when configured to run as a mule"""
+def run(startup_delay=4.0):
+    """Run the dummy notifier, forever"""
 
     def sig_die(signum, frame):
         raise OSError(f"Caught signal {signal.Signals(signum).name}")
 
+    if startup_delay > 0:
+        time.sleep(startup_delay)
+
     try:
+        systemd.daemon.notify("STATUS=Initializing dummy notifier...")
         logger.info("dummy test notifier starting up")
         connect_to_hivemind()
         logger.info("dummy test notifier connected to hivemind")
@@ -123,8 +135,14 @@ def run():
         signal.signal(signal.SIGHUP, sig_die)
         signal.signal(signal.SIGINT, sig_die)
 
+        systemd.daemon.notify("READY=1\nSTATUS=Started")
+
         while True:
             time.sleep(1)
 
     except Exception:
         logger.error(f"dummy test notifier mule died via exception:\n{traceback.format_exc()}")
+
+
+if __name__ == "__main__":
+    run(startup_delay=0)

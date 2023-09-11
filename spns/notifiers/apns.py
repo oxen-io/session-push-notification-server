@@ -40,6 +40,7 @@ from datetime import timedelta
 import time
 import json
 import signal
+import systemd.daemon
 import coloredlogs
 
 from .. import config
@@ -194,6 +195,10 @@ class APNSHandler:
         self.omq.send(
             self.hivemind, "admin.service_stats", "apns", oxenc.bt_serialize(self.stats.collect())
         )
+        systemd.daemon.notify(
+            f"WATCHDOG=1\nSTATUS=Running; {self.stats.total_notifies} notifications, "
+            f"{self.stats.total_retries} retries, {self.stats.total_failures} failures"
+        )
 
     def stop(self):
         self.omq.disconnect(self.hivemind)
@@ -207,12 +212,13 @@ def run(startup_delay=4.0):
     # These do not and *should* not match hivemind or any other notifier: that is, each notifier
     # needs its own unique keypair.  We do, however, want it to persist so that we can
     # restart/reconnect and receive messages sent while we where restarting.
-    key = derive_notifier_key(__name__)
+    key = derive_notifier_key("apns")
 
     if startup_delay > 0:
         time.sleep(startup_delay)
 
     logger.info("Starting apns notifier")
+    systemd.daemon.notify("STATUS=Initializing firebase notifier...")
 
     try:
         loop = asyncio.new_event_loop()
@@ -225,6 +231,7 @@ def run(startup_delay=4.0):
         raise e
 
     logger.info("apns notifier started")
+    systemd.daemon.notify("READY=1\nSTATUS=Started")
 
     def sig_die(signum, frame):
         raise OSError(f"Caught signal {signal.Signals(signum).name}")
@@ -242,3 +249,7 @@ def run(startup_delay=4.0):
     logger.info("apns notifier shut down")
 
     handler.stop()
+
+
+if __name__ == "__main__":
+    run(startup_delay=0)

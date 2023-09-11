@@ -80,6 +80,10 @@ class NotifyStats:
         self.notify_retries = 0  # Successful notifications that required 1 or more retries
         self.failures = 0  # Failed notifications (i.e. neither first attempt nor retries worked)
 
+        self.total_notifies = 0
+        self.total_retries = 0
+        self.total_failures = 0
+
         # History of recent (time, notifies) values:
         self.notify_hist = deque()
 
@@ -111,6 +115,9 @@ class NotifyStats:
             while self.notify_hist and self.notify_hist[0][0] < cutoff:
                 self.notify_hist.popleft()
             self.notify_hist.append((now, self.notifies))
+            self.total_notifies += self.notifies
+            self.total_retries += self.notify_retries
+            self.total_failures += self.failures
             self.notifies, self.notify_retries, self.failures = 0, 0, 0
 
         return report

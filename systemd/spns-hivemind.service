@@ -1,0 +1,18 @@
+[Unit]
+Description=Session Push Notification Server -- central push handler (hivemind)
+After=network-online.target
+PartOf=spns.target
+
+[Service]
+User=push
+Group=_loki
+Type=notify
+WatchdogSec=1min
+WorkingDirectory=/home/push/session-push-notification-server
+LimitNOFILE=16384
+Restart=always
+RestartSec=5s
+ExecStart=/usr/bin/python3 -mspns.hivemind
+
+[Install]
+WantedBy=multi-user.target

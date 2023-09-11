@@ -7,7 +7,7 @@ import os
 
 
 def run():
-    """Runs a HiveMind instance indefinitely (intended for use as a uwsgi mule)"""
+    """Runs a HiveMind instance indefinitely"""
 
     hivemind = None
 
@@ -38,3 +38,7 @@ def run():
 
     if hivemind:
         stop()
+
+
+if __name__ == "__main__":
+    run()

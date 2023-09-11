@@ -1,0 +1,19 @@
+[Unit]
+Description=Session Push Notification Server -- %i notifier
+After=network-online.target
+Wants=spns-hivemind.service
+After=spns-hivemind.service
+PartOf=spns.target
+
+[Service]
+User=push
+Group=_loki
+Type=notify
+WatchdogSec=1min
+WorkingDirectory=/home/push/session-push-notification-server
+Restart=always
+RestartSec=5s
+ExecStart=/usr/bin/python3 -mspns.notifiers.%i
+
+[Install]
+WantedBy=multi-user.target

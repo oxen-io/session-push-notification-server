@@ -15,6 +15,7 @@ import datetime
 import time
 import json
 import signal
+import systemd.daemon
 from threading import Lock
 
 omq = None
@@ -72,9 +73,13 @@ def push_notification(msg: Message):
     device_token = data[b"&"].decode()  # unique service id, as we returned from validate
 
     msg = huawei_messaging.Message(
-        data=json.dumps({"enc_payload": oxenc.to_base64(enc_payload), "spns": f"{SPNS_HUAWEI_VERSION}"}),
+        data=json.dumps(
+            {"enc_payload": oxenc.to_base64(enc_payload), "spns": f"{SPNS_HUAWEI_VERSION}"}
+        ),
         token=[device_token],
-        android=huawei_messaging.AndroidConfig(urgency=huawei_messaging.AndroidConfig.HIGH_PRIORITY),
+        android=huawei_messaging.AndroidConfig(
+            urgency=huawei_messaging.AndroidConfig.HIGH_PRIORITY
+        ),
     )
 
     global notify_queue, queue_lock
@@ -104,6 +109,10 @@ def ping():
     global omq, hivemind, stats
     omq.send(hivemind, "admin.register_service", "huawei")
     omq.send(hivemind, "admin.service_stats", "huawei", oxenc.bt_serialize(stats.collect()))
+    systemd.daemon.notify(
+        f"WATCHDOG=1\nSTATUS=Running; {stats.total_notifies} notifications, "
+        f"{stats.total_retries} retries, {stats.total_failures} failures"
+    )
 
 
 def start():
@@ -112,7 +121,7 @@ def start():
     # These do not and *should* not match hivemind or any other notifier: that is, each notifier
     # needs its own unique keypair.  We do, however, want it to persist so that we can
     # restart/reconnect and receive messages sent while we where restarting.
-    key = derive_notifier_key(__name__)
+    key = derive_notifier_key("huawei")
 
     global omq, hivemind, huawei_push_admin, queue_timer
 
@@ -137,9 +146,7 @@ def start():
         Address(config.config.hivemind_sock), auth_level=AuthLevel.basic, ephemeral_routing_id=False
     )
 
-    huawei_push_admin = push_admin.initialize_app(
-        conf["app_id"], conf["app_secret"]
-    )
+    huawei_push_admin = push_admin.initialize_app(conf["app_id"], conf["app_secret"])
 
     omq.send(hivemind, "admin.register_service", "huawei")
 
@@ -167,6 +174,7 @@ def run(startup_delay=4.0):
         time.sleep(startup_delay)
 
     logger.info("Starting huawei notifier")
+    systemd.daemon.notify("STATUS=Initializing huawei notifier...")
     try:
         start()
     except Exception as e:
@@ -174,6 +182,7 @@ def run(startup_delay=4.0):
         raise e
 
     logger.info("Huawei notifier started")
+    systemd.daemon.notify("READY=1\nSTATUS=Started")
 
     def sig_die(signum, frame):
         raise OSError(f"Caught signal {signal.Signals(signum).name}")
@@ -186,3 +195,7 @@ def run(startup_delay=4.0):
             time.sleep(3600)
     except Exception as e:
         logger.error(f"huawei notifier mule died via exception: {e}")
+
+
+if __name__ == "__main__":
+    run(startup_delay=0)

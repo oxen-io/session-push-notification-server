@@ -23,6 +23,7 @@ pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium>=1.0.18)
 pkg_check_modules(OXENC REQUIRED IMPORTED_TARGET liboxenc>=1.0.4)
 pkg_check_modules(OXENMQ REQUIRED IMPORTED_TARGET liboxenmq>=1.2.14)
 pkg_check_modules(NLOHMANN_JSON REQUIRED IMPORTED_TARGET nlohmann_json>=3.7.0)
+pkg_check_modules(SYSTEMD REQUIRED IMPORTED_TARGET libsystemd)
 
 if(CMAKE_VERSION VERSION_LESS "3.21")
     # Work around cmake bug 22180 (PkgConfig::THING not set if no flags needed)
@@ -77,6 +78,7 @@ target_link_libraries(spns PRIVATE
     PkgConfig::OXENC
     PkgConfig::OXENMQ
     PkgConfig::NLOHMANN_JSON
+    PkgConfig::SYSTEMD
     PUBLIC
     pqxx
     oxen::logging)

@@ -36,11 +36,11 @@ def start_oxenmq():
 
     global omq, hivemind
 
-    app.logger.debug(f"Starting oxenmq connection from web worker {uwsgi.worker_id()}")
+    app.logger.info(f"Starting oxenmq connection from web worker {uwsgi.worker_id()}")
 
     omq = oxenmq.OxenMQ()
     omq.start()
-    app.logger.debug("Started, connecting to hivemind")
+    app.logger.info("Started web worker, connecting to hivemind")
 
     hivemind = omq.connect_remote(oxenmq.Address(config.config.hivemind_sock))
 

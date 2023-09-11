@@ -16,6 +16,7 @@ import datetime
 import time
 import json
 import signal
+import systemd.daemon
 from threading import Lock
 
 omq = None
@@ -106,6 +107,10 @@ def ping():
     global omq, hivemind, stats
     omq.send(hivemind, "admin.register_service", "firebase")
     omq.send(hivemind, "admin.service_stats", "firebase", oxenc.bt_serialize(stats.collect()))
+    systemd.daemon.notify(
+        f"WATCHDOG=1\nSTATUS=Running; {stats.total_notifies} notifications, "
+        f"{stats.total_retries} retries, {stats.total_failures} failures"
+    )
 
 
 def start():
@@ -114,7 +119,7 @@ def start():
     # These do not and *should* not match hivemind or any other notifier: that is, each notifier
     # needs its own unique keypair.  We do, however, want it to persist so that we can
     # restart/reconnect and receive messages sent while we where restarting.
-    key = derive_notifier_key(__name__)
+    key = derive_notifier_key("firebase")
 
     global omq, hivemind, firebase, queue_timer
 
@@ -169,6 +174,7 @@ def run(startup_delay=4.0):
         time.sleep(startup_delay)
 
     logger.info("Starting firebase notifier")
+    systemd.daemon.notify("STATUS=Initializing firebase notifier...")
     try:
         start()
     except Exception as e:
@@ -176,6 +182,7 @@ def run(startup_delay=4.0):
         raise e
 
     logger.info("Firebase notifier started")
+    systemd.daemon.notify("READY=1\nSTATUS=Started")
 
     def sig_die(signum, frame):
         raise OSError(f"Caught signal {signal.Signals(signum).name}")
@@ -188,3 +195,7 @@ def run(startup_delay=4.0):
             time.sleep(3600)
     except Exception as e:
         logger.error(f"firebase notifier mule died via exception: {e}")
+
+
+if __name__ == "__main__":
+    run(startup_delay=0)
