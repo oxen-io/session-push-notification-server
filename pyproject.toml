@@ -1,6 +1,0 @@
-[tool.black]
-line-length = 100
-skip-magic-trailing-comma = true
-target-version = ['py38']
-include = '\.py$'
-

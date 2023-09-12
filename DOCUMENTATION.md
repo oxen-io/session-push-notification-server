@@ -1,6 +1,6 @@
 # Documentation
 
-- PN subscriptions now go to the `/subscribe` endpoint on
+- PN subscriptions go to the `/subscribe` endpoint on
 
     https://push.getsession.org
 
@@ -8,39 +8,39 @@ via a v4 onion request.  The onion req pubkey is: d7557fe563e2610de876c0ac7341b6
 
 - The JSON payload looks like this:
 
-    {
-        "pubkey": "05123...",
-        "session_ed25519": "abc123...",
-        "subkey_tag": "def789...",
-        "namespaces": [-400,0,1,2,17],
-        "data": true,
-        "sig_ts": 1677520760,
-        "signature": "f8efdd120007...",
-        "service": "apns",
-        "service_info": { "token": "xyz123..." },
-        "enc_key": "abcdef..."
-    }
+        {
+            "pubkey": "05123...",
+            "session_ed25519": "abc123...",
+            "subkey_tag": "def789...",
+            "namespaces": [-400,0,1,2,17],
+            "data": true,
+            "sig_ts": 1677520760,
+            "signature": "f8efdd120007...",
+            "service": "apns",
+            "service_info": { "token": "xyz123..." },
+            "enc_key": "abcdef..."
+        }
 
     where keys are as follows (note that all bytes values shown above in hex can be passed either as
     hex or base64):
 
-    - pubkey -- the 33-byte account being subscribed to; typically a session ID.
-    - session_ed25519 -- when the `pubkey` value starts with 05 (i.e. a session ID) this is the
+    - `pubkey` -- the 33-byte account being subscribed to; typically a session ID.
+    - `session_ed25519` -- when the `pubkey` value starts with 05 (i.e. a session ID) this is the
       underlying ed25519 32-byte pubkey associated with the session ID.  When not 05, this field
       should not be provided.
-    - subkey_tag -- 32-byte swarm authentication subkey; omitted (or null) when not using subkey
+    - `subkey_tag` -- 32-byte swarm authentication subkey; omitted (or null) when not using subkey
       auth
-    - namespaces -- list of integer namespace (-32768 through 32767).  These must be sorted in
+    - `namespaces` -- list of integer namespace (-32768 through 32767).  These must be sorted in
       ascending order.
-    - data -- if provided and true then notifications will include the body of the message (as long
+    - `data` -- if provided and true then notifications will include the body of the message (as long
       as it isn't too large); if false then the body will not be included in notifications.
-    - sig_ts -- the signature unix timestamp (seconds, not ms); see below.
-    - signature -- the 64-byte Ed25519 signature; see below.
-    - service -- the string identifying the notification service, such as "apns" or "firebase".
-    - service_info -- dict of service-specific data; typically this includes just a "token" field
+    - `sig_ts` -- the signature unix timestamp (seconds, not ms); see below.
+    - `signature` -- the 64-byte Ed25519 signature; see below.
+    - `service` -- the string identifying the notification service, such as "apns" or "firebase".
+    - `service_info` -- dict of service-specific data; typically this includes just a "token" field
       with a device-specific token, but different services in the future may have different input
       requirements.
-    - enc_key -- 32-byte encryption key; notification payloads sent to the device will be encrypted
+    - `enc_key` -- 32-byte encryption key; notification payloads sent to the device will be encrypted
       with XChaCha20-Poly1305 using this key.  Though it is permitted for this to change, it is
       recommended that the device generate this once and persist it.
 
@@ -60,7 +60,7 @@ via a v4 onion request.  The onion req pubkey is: d7557fe563e2610de876c0ac7341b6
     - a signature is signed using the account's Ed25519 private key (or Ed25519 subkey, if using
       subkey authentication with a subkey_tag, for future closed group subscriptions), and signs the value:
 
-      "MONITOR" || HEX(ACCOUNT) || SIG_TS || DATA01 || NS[0] || "," || ... || "," || NS[n]
+          "MONITOR" || HEX(ACCOUNT) || SIG_TS || DATA01 || NS[0] || "," || ... || "," || NS[n]
 
       where SIG_TS is the `sig_ts` value as a base-10 string; DATA01 is either "0" or "1" depending
       on whether the subscription wants message data included; and the trailing NS[i] values are a
@@ -69,17 +69,17 @@ via a v4 onion request.  The onion req pubkey is: d7557fe563e2610de876c0ac7341b6
 
     Returns json such as:
 
-    { "success": true, "added": true }
+        { "success": true, "added": true }
 
     on acceptance of a new registration, or:
 
-    { "success": true, "updated": true }
+        { "success": true, "updated": true }
 
     on renewal/update of an existing device registration.
 
     On error returns:
 
-    { "error": CODE, "message": "some error description" }
+        { "error": CODE, "message": "some error description" }
 
     where CODE is one of the integer values of the spns/hive/subscription.hpp SUBSCRIBE enum, here:
     https://github.com/jagerman/session-push-notification-server/blob/spns-v2/spns/hive/subscription.hpp#L21
@@ -87,22 +87,20 @@ via a v4 onion request.  The onion req pubkey is: d7557fe563e2610de876c0ac7341b6
 
 - Notifications when received now look like this (APNS):
 
-
-    {
-        'aps': {
-            "alert": {"title": "Session", "body": "You've got a new message"},
-            "badge": 1,
-            "sound": "default",
-            "mutable-content": 1,
-            "category": "SECRET",
-        },
-        'enc_payload': B64(NONCE+ENCRYPTED(l123:{...json...}456:...msg...e)),
-        'spns': 1
-    }
+        {
+            'aps': {
+                "alert": {"title": "Session", "body": "You've got a new message"},
+                "badge": 1,
+                "sound": "default",
+                "mutable-content": 1,
+                "category": "SECRET",
+            },
+            'enc_payload': B64(NONCE+ENCRYPTED(l123:{...json...}456:...msg...e)),
+            'spns': 1
+        }
 
   That is:
-  - `aps` is some Apple junk; this is copied over from the current push notification server code, so
-    I assume it's what it needs to be.
+  - `aps` is some required Apple junk.
   - `spns` is a version counter, currently 1, but will be incremented if we make significant future
     changes to the notification protocol.
   - `enc_payload` is a base64-encoded value which, in decoded (binary) form, is:
@@ -135,128 +133,3 @@ via a v4 onion request.  The onion req pubkey is: d7557fe563e2610de876c0ac7341b6
 - For Android, the subscription request uses `"service": "firebase"`, and the request data is the
   same as iOS except with the Apple-specific `"aps"` key omitted (that is: it has the `enc_payload`
   and `spns` keys, as described above).
-
-
-### Lsrpc V4 (`/oxen/v4/lsrpc`)
-- Endpoint: `/register`
-- Method: **POST**
-- Header: `[Content-Type: application/json]`
-- Expected Body:
-```
-    {
-        "token": String
-        "pubKey": String
-    }
-```
-
-- Endpoint: `/unregister`
-- Method: **POST**
-- Header: `[Content-Type: application/json]`
-- Expected Body:
-```
-    {
-        "token": String
-    }
-```
-
-- Endpoint: `/subscribe_closed_group`
-- Method: **POST**
-- Header: `[Content-Type: application/json]`
-- Expected Body:
-```
-    {
-        "closedGroupPublicKey": String
-        "pubKey": String
-    }
-```
-
-- Endpoint: `/unsubscribe_closed_group`
-- Method: **POST**
-- Header: `[Content-Type: application/json]`
-- Expected Body:
-```
-    {
-        "closedGroupPublicKey": String
-        "pubKey": String
-    }
-```
-
-- Endpoint: `/notify`
-- Method: **POST**
-- Header: `[Content-Type: application/json]`
-- Expected Body:
-```
-    {
-        "data": String
-        "send_to": String
-    }
-```
-
-- Response(Bencoded):
-```
-    {
-        "code": Number,
-        "header": {
-            "content-type": "application/json"
-        },
-        "body": {
-            "code": 0 or 1
-            "message": "Success" or Error Message String
-        }
-    }
-```
-
-### Lsprc V2 (`/loki/v2/lsrpc`)
-
-- Same endpoints as Lsrpc V4
-
-- Response:
-```
-    {
-        "status": Number,
-        "body": {
-            "code": 0 or 1
-            "message": "Success" or Error Message String
-        }
-    }
-```
-
-### Statistics
-- Endpoint:  `/get_statistics_data`
-- Method: **POST**
-- Authorization: `[Authorization: Basic base64(username:password)]`
-- Header: `[Content-Type: application/json]`
-- Expected Body: ( Note: All fields are optional )
-```
-  { 
-    "start_date": Date String formated "%Y-%m-%d %H:%M:%S" or "%Y-%m-%d",
-    "end_date": Date String formated "%Y-%m-%d %H:%M:%S" or "%Y-%m-%d",
-    "ios_pn_number": Boolean,
-    "android_pn_number": Boolean,
-    "closed_group_message_number": Boolean
-    "total_message_number": Boolean
-  }
-  ```
-- Response:
-```
-{
-    "code": 0,
-    "data": {
-        "ios_device_number": Number,
-        "android_device_number": Number,
-        "total_session_id_number": Number,
-        "data": [
-                    {
-                        "start_date": Date String formated "%Y-%m-%d %H:%M:%S",
-                        "end_date": Date String formated "%Y-%m-%d %H:%M:%S",
-                        "ios_pn_number": Number,
-                        "android_pn_number": Number,
-                        "closed_group_message_number": Number,
-                        "total_message_number": Number,
-                        "deduplicated_1_1_message_number": Number,
-                        "untracked_message_number": Number
-                    },
-                ]
-    }
-}
-```

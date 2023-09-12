@@ -1,7 +1,0 @@
-Flask~=2.1.2
-nacl~=1.5.0
-firebase_admin
-urllib3~=1.26.3
-aioapns>=2.1
-oxenmq>=1.0.2
-oxenc
