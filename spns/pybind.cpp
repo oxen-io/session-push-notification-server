@@ -111,6 +111,13 @@ PYBIND11_MODULE(core, m) {
                     "how frequently, in seconds, between subscription rechecks (for push renewals, "
                     "expiries, etc.)")
             .def_readwrite(
+                    "omq_push_instances",
+                    &Config::omq_push_instances,
+                    "How many dedicated oxenmq instances to use for handle push notifications; if "
+                    "1 or greater then this many separate oxenmq instances will be started to deal "
+                    "with push requests; if 0 then the main oxenmq server will be used for "
+                    "everything.")
+            .def_readwrite(
                     "max_pending_connects",
                     &Config::max_pending_connects,
                     "maximum number of permitted simultaneous connection attempts.  (This is not "

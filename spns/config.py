@@ -102,6 +102,7 @@ def load_config():
             "subs_interval": ("subs_interval", None, int),
             "max_connects": ("max_pending_connects", None, int),
             "filter_lifetime": ("filter_lifetime", None, int),
+            "omq_push_instances": ("omq_push_instances", None, int),
             "startup_wait": ("notifier_wait", None, lambda x: round(1000 * float(x))),
             "notifiers_expected": (
                 "notifiers_expected",
