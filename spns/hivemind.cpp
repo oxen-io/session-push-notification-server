@@ -308,7 +308,7 @@ HiveMind::HiveMind(Config conf_in) :
         prom.get_future().get();
         log::info(cat, "Connected to oxend");
 
-        sd_notify(0, "STATUS=Waiting for notifiers");
+        sd_notify(0, "READY=1\nSTATUS=Waiting for notifiers");
 
         if (config.notifier_wait > 0s) {
             // Wait for notification servers that start up before or alongside us to connect:
@@ -384,7 +384,6 @@ void HiveMind::set_ready() {
         std::lock_guard lock{deferred_mutex_};
         ready = true;
     }
-    log_stats("READY=1");
 
     while (!deferred_.empty()) {
         std::move(deferred_.front())();
