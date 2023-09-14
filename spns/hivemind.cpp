@@ -118,8 +118,12 @@ HiveMind::HiveMind(Config conf_in) :
         log::info(cat, "Listening for incoming connections on {}", log_addr);
     }
 
+    // Keep a fairly large queue so that we can handle a sudden influx of notifications; if using
+    // multiple instances, use smaller individual queues but with a slightly higher overall queue.
+    int notify_queue_size = omq_push_.size() <= 1 ? 4000 : (6000 / omq_push_.size());
+
     // Invoked by our oxend to notify of a new block:
-    omq_.add_category("notify", oxenmq::AuthLevel::basic)
+    omq_.add_category("notify", oxenmq::AuthLevel::basic, /*reserved_threads=*/0, notify_queue_size)
             .add_command("block", ExcWrapper{*this, &HiveMind::on_new_block, "on_new_block"});
 
     if (omq_push_.empty())
@@ -129,7 +133,11 @@ HiveMind::HiveMind(Config conf_in) :
                 ExcWrapper{*this, &HiveMind::on_message_notification, "on_message_notification"});
     else
         for (auto& push : omq_push_)
-            push.add_category("notify", oxenmq::AuthLevel::basic)
+            push.add_category(
+                        "notify",
+                        oxenmq::AuthLevel::basic,
+                        /*reserved_threads=*/0,
+                        notify_queue_size)
                     .add_command(
                             "message",
                             ExcWrapper{
