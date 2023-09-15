@@ -1,5 +1,18 @@
 
 cmake_minimum_required(VERSION 3.18)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+  foreach(lang C CXX)
+    if(NOT DEFINED CMAKE_${lang}_COMPILER_LAUNCHER AND NOT CMAKE_${lang}_COMPILER MATCHES ".*/ccache")
+      message(STATUS "Enabling ccache for ${lang}")
+      set(CMAKE_${lang}_COMPILER_LAUNCHER ${CCACHE_PROGRAM} CACHE STRING "")
+    endif()
+  endforeach()
+endif()
+
 project(spns)
 
 set(CMAKE_CXX_STANDARD 17)
