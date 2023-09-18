@@ -43,6 +43,12 @@ struct Config {
     // How often we recheck for re-subscriptions for push renewals, expiries, etc.
     std::chrono::seconds subs_interval = 30s;
 
+    // Number of extra oxenmq instances to start up for push notifications.  If 0 then no extra ones
+    // are started and just the main oxenmq instance is used for everything.  The extra instances
+    // are used exlusively for push notifications; each connection to a new SN is round-robin
+    // assigned across the instances.
+    int omq_push_instances = 0;
+
     // Maximum connections we will attempt to establish simultaneously (we can have more, we just
     // won't try to open more than this at once until some succeed or fail).  You can set this to 0
     // for a "dry run" mode where no connections at all will be made.

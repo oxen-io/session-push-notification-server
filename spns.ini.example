@@ -37,6 +37,15 @@ max_connects = 1000
 # often last somewhat longer than this, but this is the minimum).
 filter_lifetime = 300
 
+# How many separate oxenmq instances to start to talk to network service nodes.  Increasing this can
+# be helpful if a single oxenmq instance (typically the proxy thread) starts bottlenecking under
+# heavy load.  If this is set to 1 or greater then this many extra servers are started and each
+# connection to a remote service node is assigned in round-robin order across the instances, while
+# the main local oxenmq instance will be used only for non-push requests (subscriptions, timers,
+# communication with notifiers, local admin stats endpoints, etc.).  If unset or set to 0 then just
+# one oxenmq instance will be used for everything (both local and push traffic).
+#omq_push_instances = 4
+
 # How long the main hivemind process will wait at startup before establishing connections to
 # the network's service nodes.  This delay is designed to allow subordinate notification processes
 # to connect to the hivemind to ensure that notification services are ready after a restart before

@@ -49,16 +49,44 @@ HiveMind::HiveMind(Config conf_in) :
 
     sd_notify(0, "STATUS=Initializing OxenMQ");
 
-    omq_.log_level(
-            oxenmq::LogLevel::debug);  // Get everything (except trace) and let our logger filter it
+    // Ignore debugging and below; get everything else and let our logger filter it
+    omq_.log_level(oxenmq::LogLevel::info);
 
-    omq_.MAX_SOCKETS = 50000;
-    omq_.MAX_MSG_SIZE = 10 * 1024 * 1024;
+    while (omq_push_.size() < config.omq_push_instances) {
+        auto& o = omq_push_.emplace_back(
+                std::string{config.pubkey.sv()},
+                std::string{config.privkey.sv()},
+                false,
+                nullptr,
+                omq_log);
+        o.MAX_SOCKETS = 50000;
+        o.MAX_MSG_SIZE = 10 * 1024 * 1024;
+        o.EPHEMERAL_ROUTING_ID = false;
+        o.log_level(oxenmq::LogLevel::info);
+        // Since we're splitting the load, we reduce number of workers per push server to
+        // ceil(instances/N) + 1 (the +1 because the load is probably not perfectly evenly
+        // distributed).
+        o.set_general_threads(
+                1 + (std::thread::hardware_concurrency() + config.omq_push_instances - 1) /
+                            config.omq_push_instances);
+    }
+    omq_push_next_ = omq_push_.begin();
 
-    // We always need to ensure we have some batch threads available because for swarm updates
-    // we keep a lock held during the batching and need to ensure that there will always be some
-    // workers available, even if a couple workers lock waiting on that lock.
-    omq_.set_batch_threads(std::max<int>(std::thread::hardware_concurrency(), 4));
+    if (omq_push_.empty()) {
+        // the main omq_ is dealing with push conns and notifications so increase limits
+        omq_.MAX_SOCKETS = 50000;
+        omq_.MAX_MSG_SIZE = 10 * 1024 * 1024;
+        omq_.EPHEMERAL_ROUTING_ID = false;
+
+        // We always need to ensure we have some batch threads available because for swarm updates
+        // we keep a lock held during the batching and need to ensure that there will always be some
+        // workers available, even if a couple workers lock waiting on that lock.
+        omq_.set_batch_threads(std::max<int>(4, std::thread::hardware_concurrency() / 2));
+    } else {
+        // When in multi-instance mode the main worker can get by with fewer threads
+        omq_.set_general_threads(std::max<int>(4, std::thread::hardware_concurrency() / 4));
+        omq_.set_batch_threads(std::max<int>(4, std::thread::hardware_concurrency() / 4));
+    }
 
     // We listen on a local socket for connections from other local services (web frontend,
     // notification services).
@@ -90,19 +118,32 @@ HiveMind::HiveMind(Config conf_in) :
         log::info(cat, "Listening for incoming connections on {}", log_addr);
     }
 
-    omq_.add_category("notify", oxenmq::AuthLevel::basic)
+    // Keep a fairly large queue so that we can handle a sudden influx of notifications; if using
+    // multiple instances, use smaller individual queues but with a slightly higher overall queue.
+    int notify_queue_size = omq_push_.size() <= 1 ? 4000 : (6000 / omq_push_.size());
 
-            // Invoked by our oxend to notify of a new block:
-            .add_command("block", ExcWrapper{*this, &HiveMind::on_new_block, "on_new_block"})
+    // Invoked by our oxend to notify of a new block:
+    omq_.add_category("notify", oxenmq::AuthLevel::basic, /*reserved_threads=*/0, notify_queue_size)
+            .add_command("block", ExcWrapper{*this, &HiveMind::on_new_block, "on_new_block"});
 
-            // Invoke by a remote swarm to notify of a new message:
-            .add_command(
-                    "message",
-                    ExcWrapper{
-                            *this, &HiveMind::on_message_notification, "on_message_notification"})
-
-            // end of "notify." commands
-            ;
+    if (omq_push_.empty())
+        omq_.add_request_command(
+                "notify",
+                "message",
+                ExcWrapper{*this, &HiveMind::on_message_notification, "on_message_notification"});
+    else
+        for (auto& push : omq_push_)
+            push.add_category(
+                        "notify",
+                        oxenmq::AuthLevel::basic,
+                        /*reserved_threads=*/0,
+                        notify_queue_size)
+                    .add_command(
+                            "message",
+                            ExcWrapper{
+                                    *this,
+                                    &HiveMind::on_message_notification,
+                                    "on_message_notification"});
 
     omq_.add_category("push", oxenmq::AuthLevel::none)
 
@@ -221,6 +262,8 @@ HiveMind::HiveMind(Config conf_in) :
         sd_notify(0, "STATUS=Starting OxenMQ");
         log::info(cat, "Starting OxenMQ");
         omq_.start();
+        for (auto& o : omq_push_)
+            o.start();
 
         log::info(cat, "Started OxenMQ");
 
@@ -265,7 +308,7 @@ HiveMind::HiveMind(Config conf_in) :
         prom.get_future().get();
         log::info(cat, "Connected to oxend");
 
-        sd_notify(0, "STATUS=Waiting for notifiers");
+        sd_notify(0, "READY=1\nSTATUS=Waiting for notifiers");
 
         if (config.notifier_wait > 0s) {
             // Wait for notification servers that start up before or alongside us to connect:
@@ -341,7 +384,6 @@ void HiveMind::set_ready() {
         std::lock_guard lock{deferred_mutex_};
         ready = true;
     }
-    log_stats("READY=1");
 
     while (!deferred_.empty()) {
         std::move(deferred_.front())();
@@ -1183,8 +1225,15 @@ void HiveMind::on_sns_response(std::vector<std::string> data) {
                 // otherwise.
                 snode->connect(std::move(addr));
             } else {
+                // If we are using separate oxenmq instances for push handling then select the next
+                // one, round-robin style:
+                if (!omq_push_.empty() && omq_push_next_ == omq_push_.end())
+                    omq_push_next_ = omq_push_.begin();
+
+                auto& omq_instance = omq_push_.empty() ? omq_ : *omq_push_next_++;
                 // New snode
-                auto snode = std::make_shared<hive::SNode>(*this, omq_, std::move(addr), swarm);
+                auto snode =
+                        std::make_shared<hive::SNode>(*this, omq_instance, std::move(addr), swarm);
                 sns_.emplace(xpk, snode);
                 swarms_[swarm].insert(snode);
                 new_or_changed_sns.insert(snode);

@@ -116,7 +116,11 @@ class HiveMind {
 
   private:
     std::mutex mutex_;
+    // OxenMQ server for internal communications, proxied subscriptions, etc.
     oxenmq::OxenMQ omq_;
+    // OxenMQ *clients* that connect to service nodes, if the omq_push_instances setting is used.
+    std::list<oxenmq::OxenMQ> omq_push_;
+    decltype(omq_push_)::iterator omq_push_next_;
     PGConnPool pool_;
 
     // xpk -> SNode
