@@ -233,6 +233,8 @@ HiveMind::HiveMind(Config conf_in) :
             // - '@' -- the account ID (Session ID or closed group ID) to which the message was sent
             //   (33 bytes).
             // - 'n' -- the swarm namespace to which the message was deposited (-32768 to 32767).
+            // - 't' -- the swarm timestamp when the message was created (unix epoch milliseconds).
+            // - 'z' -- the message's swarm expiry timestamp (unix epoch milliseconds).
             // - '~' -- the encrypted message data; this field will not be present if the
             //   registration did not request data.
             .add_command(
@@ -628,6 +630,8 @@ WHERE account = $1
                                  3 + 21 + hash.size() +   // 1:# N:hash
                                  3 + 36 +                 // 1:@ 33:account
                                  3 + 8 +                  // 1:n i-32768e
+                                 3 + 15 +                 // 1:t i1695078498534e (timestamp)
+                                 3 + 15 +                 // 1:t i1695078498534e (expiry)
                                  (svcdata ? 3 + 21 + svcdata->size() : 0) +
                                  (want_data && maybe_data ? 3 + 21 + maybe_data->size() : 0);
 
@@ -646,6 +650,8 @@ WHERE account = $1
                 dict.append("@", account.sv());
                 dict.append("^", enc_key.sv());
                 dict.append("n", ns);
+                dict.append("t", timestamp_ms);
+                dict.append("z", expiry_ms);
                 if (want_data && maybe_data)
                     dict.append("~", *maybe_data);
             } catch (const std::exception& e) {
