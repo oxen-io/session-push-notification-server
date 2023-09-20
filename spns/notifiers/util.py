@@ -39,7 +39,7 @@ def encrypt_payload(msg: bytes, enc_key: bytes):
 def encrypt_notify_payload(data: dict, max_msg_size: int = 2500):
     enc_key = data[b"^"]
 
-    metadata = {"@": data[b"@"].hex(), "#": data[b"#"].decode(), "n": data[b"n"]}
+    metadata = {"@": data[b"@"].hex(), "#": data[b"#"].decode(), "n": data[b"n"], "t": data[b"t"], "z": data[b"z"]}
     body = data.get(b"~")
 
     if body:
