@@ -23,6 +23,7 @@
 #include <mutex>
 #include <nlohmann/json_fwd.hpp>
 #include <optional>
+#include <oxenmq/zmq.hpp>
 #include <string>
 #include <tuple>
 #include <unordered_map>
@@ -123,6 +124,15 @@ class HiveMind {
     decltype(omq_push_)::iterator omq_push_next_;
     PGConnPool pool_;
 
+    const int object_id_; // Thread-safe unique id for this HiveMind object
+    zmq::context_t notification_ctx_{};
+    zmq::socket_t notify_pull_{notification_ctx_, zmq::socket_type::pull};
+    std::thread notify_proc_thread_;
+    std::unordered_map<std::thread::id, std::unique_ptr<zmq::socket_t>> notify_push_;
+    std::mutex notify_push_mutex_;
+    zmq::socket_t& notify_push_sock();
+    std::atomic<int64_t> pushes_processed_{0};
+
     // xpk -> SNode
     std::unordered_map<X25519PK, std::shared_ptr<hive::SNode>> sns_;
     // swarmid -> {SNode...}
@@ -176,10 +186,14 @@ class HiveMind {
   public:
     HiveMind(Config conf_);
 
+    ~HiveMind();
+
   private:
     void on_reg_service(oxenmq::Message& m);
 
     void on_message_notification(oxenmq::Message& m);
+
+    void process_notifications();
 
     /// Called from a notifier service periodically to report statistics.
     ///
