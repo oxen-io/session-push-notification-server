@@ -36,10 +36,14 @@ def encrypt_payload(msg: bytes, enc_key: bytes):
     return nonce + ciphertext
 
 
-def encrypt_notify_payload(data: dict, max_msg_size: int = 2500):
+def encrypt_notify_payload(data: dict, max_msg_size: int = 2500, include_ts: bool = True):
     enc_key = data[b"^"]
 
     metadata = {"@": data[b"@"].hex(), "#": data[b"#"].decode(), "n": data[b"n"], "t": data[b"t"], "z": data[b"z"]}
+    if not include_ts:
+        for t in ("t", "z"):
+            del metadata[t]
+
     body = data.get(b"~")
 
     if body:
