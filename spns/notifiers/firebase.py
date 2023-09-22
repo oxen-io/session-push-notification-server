@@ -69,7 +69,10 @@ def validate(msg: Message):
 def push_notification(msg: Message):
     data = oxenc.bt_deserialize(msg.data()[0])
 
-    enc_payload = encrypt_notify_payload(data, max_msg_size=MAX_MSG_SIZE)
+    # TODO: remote `include_ts=False` parameter here start including timestamps; current Android
+    # release breaks when receiving extra fields, so it is disabled for now until we have a release
+    # (and enough time for upgrades).
+    enc_payload = encrypt_notify_payload(data, max_msg_size=MAX_MSG_SIZE, include_ts=False)
 
     device_token = data[b"&"].decode()  # unique service id, as we returned from validate
 
