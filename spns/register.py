@@ -14,7 +14,8 @@ def subscribe():
     {
         "pubkey": "05123...",
         "session_ed25519": "abc123...",
-        "subkey_tag": "def789...",
+        "subaccount": "def789...",
+        "subaccount_sig": "aGVsbG9...",
         "namespaces": [-400,0,1,2,17],
         "data": true,
         "sig_ts": 1677520760,
@@ -31,7 +32,8 @@ def subscribe():
     - session_ed25519 -- when the `pubkey` value starts with 05 (i.e. a session ID) this is the
       underlying ed25519 32-byte pubkey associated with the session ID.  When not 05, this field
       should not be provided.
-    - subkey_tag -- 32-byte swarm authentication subkey
+    - subaccount -- 36-byte swarm authentication subccount tag provided by an account owner
+    - subaccount_sig -- 64-byte Ed25519 signature of the subaccount tag signed by the account owner
     - namespaces -- list of integer namespace (-32768 through 32767).  These must be sorted in
       ascending order.
     - data -- if provided and true then notifications will include the body of the message (as long
@@ -57,8 +59,8 @@ def subscribe():
       recommended that clients generate a new signature whenever they re-subscribe, and that
       re-subscriptions happen more frequently than once every 14 days.
 
-    - a signature is signed using the account's Ed25519 private key (or Ed25519 subkey, if using
-      subkey authentication with a subkey_tag), and signs the value:
+    - a signature is signed using the account's Ed25519 private key (or delegated Ed25519
+      subaccount, if using subaccount authentication), and signs the value:
 
       "MONITOR" || HEX(ACCOUNT) || SIG_TS || DATA01 || NS[0] || "," || ... || "," || NS[n]
 
@@ -104,7 +106,7 @@ def subscribe():
                 "message": "Timeout waiting for push notification backend",
             }
         )
-    except Exception:
+    except Exception as e:
         app.logger.warning(f"Error proxying subscription to hivemind backend: {e}")
         return jsonify(
             {
@@ -126,7 +128,8 @@ def unsubscribe():
     {
         "pubkey": "05123...",
         "session_ed25519": "abc123...",
-        "subkey_tag": "def789...",
+        "subaccount": "def789...",
+        "subaccount_sig": "aGVsbG9...",
         "sig_ts": 1677520760,
         "signature": "f8efdd120007...",
         "service": "apns",

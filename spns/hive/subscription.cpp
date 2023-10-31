@@ -29,14 +29,14 @@ static void append_int(std::string& s, Int val) {
 
 Subscription::Subscription(
         const SwarmPubkey& pubkey,
-        std::optional<SubkeyTag> subkey_tag_,
+        std::optional<Subaccount> subaccount_,
         std::vector<int16_t> namespaces_,
         bool want_data_,
         int64_t sig_ts_,
         Signature sig_,
         bool _skip_validation) :
 
-        subkey_tag{std::move(subkey_tag_)},
+        subaccount{std::move(subaccount_)},
         namespaces{std::move(namespaces_)},
         want_data{want_data_},
         sig_ts{sig_ts_},
@@ -74,12 +74,12 @@ Subscription::Subscription(
                 sig_msg += ',';
             append_int(sig_msg, namespaces[i]);
         }
-        verify_storage_signature(sig_msg, sig, pubkey.ed25519, subkey_tag);
+        verify_storage_signature(sig_msg, sig, pubkey, subaccount);
     }
 }
 
 bool Subscription::covers(const Subscription& other) const {
-    if (subkey_tag != other.subkey_tag)
+    if (!Subaccount::is_same(subaccount, other.subaccount))
         return false;
     if (other.want_data && !want_data)
         return false;
