@@ -131,7 +131,7 @@ HiveMind::HiveMind(Config conf_in) :
             .add_command("block", ExcWrapper{*this, &HiveMind::on_new_block, "on_new_block"});
 
     if (omq_push_.empty())
-        omq_.add_request_command(
+        omq_.add_command(
                 "notify",
                 "message",
                 ExcWrapper{*this, &HiveMind::on_message_notification, "on_message_notification"});
