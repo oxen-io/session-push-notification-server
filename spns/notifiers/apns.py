@@ -218,7 +218,7 @@ def run(startup_delay=4.0):
         time.sleep(startup_delay)
 
     logger.info("Starting apns notifier")
-    systemd.daemon.notify("STATUS=Initializing firebase notifier...")
+    systemd.daemon.notify("STATUS=Initializing apns notifier...")
 
     try:
         loop = asyncio.new_event_loop()
