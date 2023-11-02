@@ -25,6 +25,8 @@ def subscribe():
         "enc_key": "abcdef..."
     }
 
+    or an array of such JSON objects (to submit multiple subscriptions at once).
+
     where keys are as follows (note that all bytes values shown above in hex can be passed either as
     hex or base64):
 
@@ -84,6 +86,9 @@ def subscribe():
     { "error": CODE, "message": "some error description" }
 
     where CODE is one of the integer values of the spns/hive/subscription.hpp SUBSCRIBE enum.
+
+    If called with an array of subscriptions then an array of such json objects is returned, where
+    return value [n] is the response for request [n].
     """
 
     clen = request.content_length
@@ -91,7 +96,7 @@ def subscribe():
         return jsonify(
             {"error": SUBSCRIBE.BAD_INPUT.value, "message": "Invalid request: request body missing"}
         )
-    if request.content_length > 10_000:
+    if request.content_length > 100_000:
         return jsonify(
             {"error": SUBSCRIBE.BAD_INPUT.value, "message": "Invalid request: request too large"}
         )
@@ -136,7 +141,9 @@ def unsubscribe():
         "service_info": { ... }
     }
 
-    Where the signature here is over the value:
+    (or a list of such elements).
+
+    The signature here is over the value:
 
       "UNSUBSCRIBE" || HEX(ACCOUNT) || SIG_TS
 
@@ -158,6 +165,9 @@ def unsubscribe():
     { "error": INT, "message": "some error message" }
 
     where INT is one of the error integers from spns/hive/subscription.cpp's SUBSCRIBE enum.
+
+    If this request is invoked with a list of unsubscribe requests then a list of such error objects
+    is returned, one for each unsubscribe request.
     """
 
     clen = request.content_length
@@ -165,7 +175,7 @@ def unsubscribe():
         return jsonify(
             {"error": SUBSCRIBE.BAD_INPUT.value, "message": "Invalid request: request body missing"}
         )
-    if request.content_length > 10_000:
+    if request.content_length > 100_000:
         return jsonify(
             {"error": SUBSCRIBE.BAD_INPUT.value, "message": "Invalid request: request too large"}
         )

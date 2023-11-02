@@ -220,6 +220,10 @@ class HiveMind {
 
     using UnsubData = std::tuple<Signature, std::optional<Subaccount>, int64_t>;
     void on_notifier_validation(
+            nlohmann::json& final_response,
+            size_t i,
+            std::atomic<int>& remaining,
+            bool multi,
             bool success,
             oxenmq::Message::DeferredSend replier,
             std::string service,
@@ -241,8 +245,8 @@ class HiveMind {
     oxenmq::ConnectionID sub_unsub_service_conn(const std::string& service);
 
     void on_subscribe(oxenmq::Message& m);
-
     void on_unsubscribe(oxenmq::Message& m);
+    void on_sub_unsub_impl(oxenmq::Message& m, bool subscribe);
 
     void db_cleanup();
 
