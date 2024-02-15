@@ -42,7 +42,7 @@ class subscribe_error : public std::runtime_error {
 struct Subscription {
     static constexpr std::chrono::seconds SIGNATURE_EXPIRY{14 * 24h};
 
-    std::optional<SubkeyTag> subkey_tag;
+    std::optional<Subaccount> subaccount;
     std::vector<int16_t> namespaces;
     bool want_data;
     int64_t sig_ts;
@@ -50,7 +50,7 @@ struct Subscription {
 
     Subscription(
             const SwarmPubkey& pubkey_,
-            std::optional<SubkeyTag> subkey_tag_,
+            std::optional<Subaccount> subaccout_,
             std::vector<int16_t> namespaces_,
             bool want_data_,
             int64_t sig_ts_,
@@ -58,24 +58,25 @@ struct Subscription {
             bool _skip_validation = false);
 
     // Returns true if `this` and `other` represent the same subscription as far as upstream swarm
-    // subscription is concerned.  That is: same subkey, same namespaces, and same want_data value.
-    // The caller is responsible for also ensuring that the subscription applies to the same account
-    // (i.e. has the same SwarmPubkey).
+    // subscription is concerned.  That is: same subaccount tag, same namespaces, and same want_data
+    // value.  The caller is responsible for also ensuring that the subscription applies to the same
+    // account (i.e. has the same SwarmPubkey).
     bool is_same(const Subscription& other) const {
-        return is_same(other.subkey_tag, other.namespaces, other.want_data);
+        return is_same(other.subaccount, other.namespaces, other.want_data);
     }
     // Same as above, but takes the constituent parts.
     bool is_same(
-            const std::optional<SubkeyTag>& o_subkey_tag,
+            const std::optional<Subaccount>& o_subaccount,
             const std::vector<int16_t>& o_namespaces,
             bool o_want_data) const {
-        return subkey_tag == o_subkey_tag && namespaces == o_namespaces && want_data == o_want_data;
+        return Subaccount::is_same(subaccount, o_subaccount) && namespaces == o_namespaces &&
+               want_data == o_want_data;
     }
 
     // Returns true if `this` subscribes to at least everything needed for `other`; `this` can
     // return extra things (e.g. extra namespaces), but cannot omit anything that `other` needs to
-    // send notifications, nor can the two subscriptions use different subkey tags.  This is *only*
-    // valid for two Subscriptions referring to the same account!
+    // send notifications, nor can the two subscriptions use different subaccount tags.  This is
+    // *only* valid for two Subscriptions referring to the same account!
     bool covers(const Subscription& other) const;
 
     bool is_expired(int64_t now) const { return sig_ts < now - SIGNATURE_EXPIRY.count(); }

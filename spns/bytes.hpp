@@ -51,11 +51,29 @@ struct AccountID : bytes<33> {};
 struct Ed25519PK : bytes<32> {};
 struct X25519PK : bytes<32> {};
 struct X25519SK : bytes<32> {};
-struct SubkeyTag : bytes<32> {};
+struct SubaccountTag : bytes<36> {};
 struct Signature : bytes<64> {};
 struct EncKey : bytes<32> {};
 
 struct Blake2B_32 : bytes<32> {};
+
+struct Subaccount {
+    SubaccountTag tag;  /// Provided by the account owner
+    Signature sig;      /// signature of tag, signed by account owner
+
+    // Returns true if two subaccounts have the same tag
+    bool is_same(const Subaccount& other) const { return tag == other.tag; }
+
+    // Returns true if two optional subaccounts refer to the same subaccount or account (i.e. both
+    // empty, or both set to the same subaccount tag).  Does not require identical signatures.
+    static bool is_same(const std::optional<Subaccount>& a, const std::optional<Subaccount>& b) {
+        if (a.has_value() != b.has_value())
+            return false;  // One set, one unset
+        if (!a.has_value())
+            return false;  // Both unset
+        return a->is_same(*b);
+    }
+};
 
 template <typename T, std::enable_if_t<is_bytes<T>, int> = 0>
 inline std::basic_string_view<std::byte> as_bsv(const T& v) {

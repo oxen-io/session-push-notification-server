@@ -191,9 +191,9 @@ class APNSHandler:
     @warn_on_except
     def ping(self):
         """Makes sure we are registered and reports updated stats to hivemind; called every few seconds"""
-        self.omq.send(self.hivemind, "admin.register_service", "apns")
+        self.omq.send(self.hivemind, "admin.register_service", self.service_name)
         self.omq.send(
-            self.hivemind, "admin.service_stats", "apns", oxenc.bt_serialize(self.stats.collect())
+            self.hivemind, "admin.service_stats", self.service_name, oxenc.bt_serialize(self.stats.collect())
         )
         systemd.daemon.notify(
             f"WATCHDOG=1\nSTATUS=Running; {self.stats.total_notifies} notifications, "
@@ -206,31 +206,33 @@ class APNSHandler:
         self.omq = None
 
 
-def run(startup_delay=4.0):
+def run(startup_delay=4.0, sandbox=False):
     """Runs the apns asyncio event loop, forever."""
+
+    service = "apns-sandbox" if sandbox else "apns"
 
     # These do not and *should* not match hivemind or any other notifier: that is, each notifier
     # needs its own unique keypair.  We do, however, want it to persist so that we can
     # restart/reconnect and receive messages sent while we where restarting.
-    key = derive_notifier_key("apns")
+    key = derive_notifier_key(service)
 
     if startup_delay > 0:
         time.sleep(startup_delay)
 
-    logger.info("Starting apns notifier")
-    systemd.daemon.notify("STATUS=Initializing firebase notifier...")
+    logger.info(f"Starting {service} notifier")
+    systemd.daemon.notify(f"STATUS=Initializing {service} notifier...")
 
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        handler = APNSHandler(loop, key, "apns")
+        handler = APNSHandler(loop, key, service, sandbox=sandbox)
 
     except Exception as e:
-        logger.critical(f"Failed to start up APNS notifier: {e}")
+        logger.critical(f"Failed to start up {service} notifier: {e}")
         raise e
 
-    logger.info("apns notifier started")
+    logger.info(f"{service} notifier started")
     systemd.daemon.notify("READY=1\nSTATUS=Started")
 
     def sig_die(signum, frame):
@@ -242,11 +244,11 @@ def run(startup_delay=4.0):
 
         loop.run_forever()
     except Exception as e:
-        logger.critical(f"APNS run loop failed: {e}")
+        logger.critical(f"{service} run loop failed: {e}")
     finally:
         loop.close()
 
-    logger.info("apns notifier shut down")
+    logger.info("{service} notifier shut down")
 
     handler.stop()
 

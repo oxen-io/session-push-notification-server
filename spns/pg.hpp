@@ -111,7 +111,7 @@ inline const std::string type_name<spns::AccountID>{"spns::AccountID"};
 template <>
 inline const std::string type_name<spns::Ed25519PK>{"spns::Ed25519PK"};
 template <>
-inline const std::string type_name<spns::SubkeyTag>{"spns::SubkeyTag"};
+inline const std::string type_name<spns::SubaccountTag>{"spns::SubaccountTag"};
 template <>
 inline const std::string type_name<spns::Signature>{"spns::Signature"};
 template <>
@@ -156,7 +156,7 @@ struct string_traits<spns::AccountID> : spns_byte_helper<spns::AccountID> {};
 template <>
 struct string_traits<spns::Ed25519PK> : spns_byte_helper<spns::Ed25519PK> {};
 template <>
-struct string_traits<spns::SubkeyTag> : spns_byte_helper<spns::SubkeyTag> {};
+struct string_traits<spns::SubaccountTag> : spns_byte_helper<spns::SubaccountTag> {};
 template <>
 struct string_traits<spns::Signature> : spns_byte_helper<spns::Signature> {};
 template <>

@@ -13,6 +13,7 @@
 #include <oxen/log.hpp>
 #include <oxenmq/zmq.hpp>
 #include <set>
+#include <stdexcept>
 
 #include "blake2b.hpp"
 #include "hive/signature.hpp"
@@ -131,7 +132,7 @@ HiveMind::HiveMind(Config conf_in) :
             .add_command("block", ExcWrapper{*this, &HiveMind::on_new_block, "on_new_block"});
 
     if (omq_push_.empty())
-        omq_.add_request_command(
+        omq_.add_command(
                 "notify",
                 "message",
                 ExcWrapper{*this, &HiveMind::on_message_notification, "on_message_notification"});
@@ -157,7 +158,8 @@ HiveMind::HiveMind(Config conf_in) :
             // {
             //     "pubkey": "05123...",
             //     "session_ed25519": "abc123...",
-            //     "subkey_tag": "def789...",
+            //     "subaccount": "03010000def789...",
+            //     "subaccount_sig": "14c7b71f...",
             //     "namespaces": [-400,0,1,2,17],
             //     "data": true,
             //     "sig_ts": 1677520760,
@@ -166,6 +168,8 @@ HiveMind::HiveMind(Config conf_in) :
             //     "service_info": { ... },
             //     "enc_key": "abcdef..." (32 bytes: 64 hex or 43 base64).
             // }
+            //
+            // or a JSON array of such objects.
             //
             // The `service_info` argument is passed along to the underlying notification provider
             // and must contain whatever info is required to send notifications to the device:
@@ -183,6 +187,9 @@ HiveMind::HiveMind(Config conf_in) :
             //     { "success": true, "added": true, "message": "Subscription successful" }
             //
             //     { "success": true, "updated": true, "message": "Resubscription successful" }
+            //
+            // If given an array of objects then the response is an array of such return values for
+            // each individual subscription item.
             //
             // Note that the "message" strings are subject to change and should not be relied on
             // programmatically; instead rely on the "error" or "success" values.
@@ -916,7 +923,29 @@ void HiveMind::log_stats(std::string_view pre_cmd) {
     }
 }
 
+static void sub_json_set_one_response(
+        oxenmq::Message::DeferredSend&& m,
+        nlohmann::json& response,
+        size_t i,
+        std::atomic<int>& remaining,
+        bool multi,
+        nlohmann::json val) {
+    response[i] = std::move(val);
+
+    if (--remaining == 0) {
+        // This is the last response set, so we have to send all the responses
+        if (!multi)
+            m(response[0].dump());
+        else
+            m(response.dump());
+    }
+}
+
 void HiveMind::on_notifier_validation(
+        nlohmann::json& final_response,
+        size_t i,
+        std::atomic<int>& remaining,
+        bool multi,
         bool success,
         oxenmq::Message::DeferredSend replier,
         std::string service,
@@ -988,9 +1017,9 @@ void HiveMind::on_notifier_validation(
                 message = newsub ? "Subscription successful" : "Resubscription successful";
             } else {  // Unsubscribe
                 assert(!sub);
-                auto& [sig, subkey_tag, sig_ts] = *unsub;
+                auto& [sig, subaccount, sig_ts] = *unsub;
                 bool removed = remove_subscription(
-                        pubkey, subkey_tag, std::move(service), std::move(service_id), sig, sig_ts);
+                        pubkey, subaccount, std::move(service), std::move(service_id), sig, sig_ts);
 
                 response["removed"] = removed;
                 message = removed ? "Device unsubscribed from push notifications"
@@ -1019,10 +1048,16 @@ void HiveMind::on_notifier_validation(
     if (!message.empty())
         response["message"] = std::move(message);
 
-    replier(response.dump());
+    sub_json_set_one_response(
+        std::move(replier),
+        final_response,
+        i,
+        remaining,
+        multi,
+        std::move(response));
 }
 
-std::tuple<SwarmPubkey, std::optional<SubkeyTag>, int64_t, Signature, std::string, nlohmann::json>
+std::tuple<SwarmPubkey, std::optional<Subaccount>, int64_t, Signature, std::string, nlohmann::json>
 HiveMind::sub_unsub_args(nlohmann::json& args) {
 
     auto account = from_hex_or_b64<AccountID>(args.at("pubkey").get<std::string_view>());
@@ -1030,13 +1065,20 @@ HiveMind::sub_unsub_args(nlohmann::json& args) {
     if (account[0] == static_cast<std::byte>(0x05))
         from_hex_or_b64(session_ed.emplace(), args.at("session_ed25519").get<std::string_view>());
     // SwarmPubkey pubkey{std::move(account), std::move(session_ed)};
-    std::optional<SubkeyTag> subkey_tag;
-    if (auto it = args.find("subkey_tag"); it != args.end())
-        from_hex_or_b64(subkey_tag.emplace(), it->get<std::string_view>());
+    std::optional<Subaccount> subaccount;
+    if (auto it = args.find("subaccount"); it != args.end()) {
+        auto sig_it = args.find("subaccount_sig");
+        if (sig_it == args.end())
+            throw std::invalid_argument{"Cannot specify subaccount without subaccount_sig"};
+
+        subaccount.emplace();
+        from_hex_or_b64(subaccount->tag, it->get<std::string_view>());
+        from_hex_or_b64(subaccount->sig, sig_it->get<std::string_view>());
+    }
     auto sig = from_hex_or_b64<Signature>(args.at("signature").get<std::string_view>());
 
     return {SwarmPubkey{std::move(account), std::move(session_ed)},
-            std::move(subkey_tag),
+            std::move(subaccount),
             args.at("sig_ts").get<int64_t>(),
             std::move(sig),
             args.at("service").get<std::string>(),
@@ -1054,123 +1096,174 @@ oxenmq::ConnectionID HiveMind::sub_unsub_service_conn(const std::string& service
             service + " notification service not currently available"};
 }
 
-void HiveMind::on_subscribe(oxenmq::Message& m) {
+static void json_error(oxenmq::Message& m, hive::SUBSCRIBE err, std::string_view msg) {
+    int code = static_cast<int>(err);
+    log::debug(cat, "Replying with error code {}: {}", code, msg);
+    m.send_reply(nlohmann::json{{"error", code}, {"message", msg}}.dump());
+}
+
+void HiveMind::on_sub_unsub_impl(oxenmq::Message& m, bool subscribe) {
     ready_or_defer();
 
-    // If these are set at the end we send them in reply.
-    std::optional<std::pair<hive::SUBSCRIBE, std::string>> error;
-
+    nlohmann::json args;
     try {
-        auto args = nlohmann::json::parse(m.data.at(0));
-
-        auto [pubkey, subkey_tag, sig_ts, sig, service, service_info] = sub_unsub_args(args);
-
-        auto enc_key = from_hex_or_b64<EncKey>(args.at("enc_key").get<std::string_view>());
-        auto namespaces = args.at("namespaces").get<std::vector<int16_t>>();
-
-        auto conn = sub_unsub_service_conn(service);
-
-        auto reply_handler = [this,
-                              service = service,
-                              sub = std::make_shared<hive::Subscription>(  // Throws on bad sig
-                                      pubkey,
-                                      std::move(subkey_tag),
-                                      args.at("namespaces").get<std::vector<int16_t>>(),
-                                      args.at("data").get<bool>(),
-                                      args.at("sig_ts").get<int64_t>(),
-                                      std::move(sig)),
-                              pubkey = pubkey,
-                              enc_key = std::move(enc_key),
-                              replier = m.send_later()](
-                                     bool success, std::vector<std::string> data) mutable {
-            on_notifier_validation(
-                    success,
-                    std::move(replier),
-                    std::move(service),
-                    std::move(pubkey),
-                    std::move(sub),
-                    std::move(enc_key),
-                    std::move(data));
-        };
-
-        // We handle everything else (including the response) in `_on_notifier_validation`
-        // when/if the notifier service comes back to us with the unique identifier:
-        omq_.request(
-                conn, "notifier.validate", std::move(reply_handler), service, service_info.dump());
-
+        args = nlohmann::json::parse(m.data.at(0));
     } catch (const nlohmann::json::exception&) {
         log::debug(cat, "Subscription failed: bad json");
-        error = {hive::SUBSCRIBE::BAD_INPUT, "Invalid JSON"};
-    } catch (const std::out_of_range& e) {
-        log::debug(cat, "Sub failed: missing param {}", e.what());
-        error = {hive::SUBSCRIBE::BAD_INPUT, "Missing required parameter"};
-    } catch (const hive::subscribe_error& e) {
-        error = {e.code, e.what()};
-    } catch (const std::exception& e) {
-        log::debug(cat, "Exception handling input: {}", e.what());
-        error = {hive::SUBSCRIBE::ERROR, e.what()};
+        return json_error(m, hive::SUBSCRIBE::BAD_INPUT, "Invalid JSON");
+    } catch (const std::out_of_range&) {
+        log::debug(cat, "Subscription failed: no request data provided");
+        return json_error(m, hive::SUBSCRIBE::BAD_INPUT, "Invalid request: missing request data");
+    }
+    if (!(args.is_array() || args.is_object())) {
+        log::debug(cat, "Subscription failed: bad json -- expected object or array");
+        return json_error(
+                m, hive::SUBSCRIBE::BAD_INPUT, "Invalid JSON: expected object or array of objects");
     }
 
-    if (error) {
-        int code = static_cast<int>(error->first);
-        log::debug(cat, "Replying with error code {}: {}", code, error->second);
-        m.send_reply(nlohmann::json{{"error", code}, {"message", error->second}}.dump());
+    const bool multi = args.is_array();
+
+    auto response = std::make_shared<nlohmann::json>();
+    *response = nlohmann::json::array();
+    auto remaining = std::make_shared<std::atomic<int>>(multi ? args.size() : 1);
+
+    if (!multi) {
+        // If given an object, convert to a single-element array (to make life easier below)
+        auto single = nlohmann::json::array();
+        single.push_back(std::move(args));
+        args = std::move(single);
     }
-    // Otherwise the reply is getting deferred and handled later in on_notifier_validation
+
+    for (auto& e : args)
+        response->push_back(nlohmann::json::object());
+
+    for (size_t i = 0; i < args.size(); i++) {
+        auto& e = args[i];
+
+        std::optional<std::pair<hive::SUBSCRIBE, std::string>> error;
+
+        try {
+            auto [pubkey, subaccount, sig_ts, sig, service, service_info] = sub_unsub_args(e);
+
+            auto conn = sub_unsub_service_conn(service);
+
+            oxenmq::OxenMQ::ReplyCallback reply_handler;
+
+            if (subscribe) {
+                auto enc_key = from_hex_or_b64<EncKey>(e.at("enc_key").get<std::string_view>());
+                auto namespaces = e.at("namespaces").get<std::vector<int16_t>>();
+
+                reply_handler = [this,
+                                 response,
+                                 i,
+                                 remaining,
+                                 multi,
+                                 service = service,
+                                 sub = std::make_shared<hive::Subscription>(  // Throws on bad sig
+                                         pubkey,
+                                         std::move(subaccount),
+                                         e.at("namespaces").get<std::vector<int16_t>>(),
+                                         e.at("data").get<bool>(),
+                                         e.at("sig_ts").get<int64_t>(),
+                                         std::move(sig)),
+                                 pubkey = pubkey,
+                                 enc_key = std::move(enc_key),
+                                 replier = m.send_later()](
+                                        bool success, std::vector<std::string> data) mutable {
+                    on_notifier_validation(
+                            *response,
+                            i,
+                            *remaining,
+                            multi,
+                            success,
+                            std::move(replier),
+                            std::move(service),
+                            std::move(pubkey),
+                            std::move(sub),
+                            std::move(enc_key),
+                            std::move(data));
+                };
+
+                // We handle everything else (including the response) in `_on_notifier_validation`
+                // when/if the notifier service comes back to us with the unique identifier:
+                omq_.request(
+                        conn,
+                        "notifier.validate",
+                        std::move(reply_handler),
+                        service,
+                        service_info.dump());
+            } else {
+                // unsubscribe
+
+                reply_handler = [this,
+                                 response,
+                                 i,
+                                 remaining,
+                                 multi,
+                                 service = service,
+                                 pubkey = pubkey,
+                                 unsub = UnsubData{std::move(sig), std::move(subaccount), sig_ts},
+                                 replier = m.send_later()](
+                                        bool success, std::vector<std::string> data) mutable {
+                    on_notifier_validation(
+                            *response,
+                            i,
+                            *remaining,
+                            multi,
+                            success,
+                            std::move(replier),
+                            std::move(service),
+                            std::move(pubkey),
+                            nullptr,
+                            std::nullopt,
+                            std::move(data),
+                            std::move(unsub));
+                };
+            }
+
+            omq_.request(
+                    conn,
+                    "notifier.validate",
+                    std::move(reply_handler),
+                    service,
+                    service_info.dump());
+
+        } catch (const std::out_of_range& e) {
+            log::debug(cat, "Sub failed: missing param {}", e.what());
+            error = {hive::SUBSCRIBE::BAD_INPUT, "Missing required parameter"};
+        } catch (const hive::subscribe_error& e) {
+            error = {e.code, e.what()};
+        } catch (const std::exception& e) {
+            log::debug(cat, "Exception handling input: {}", e.what());
+            error = {hive::SUBSCRIBE::ERROR, e.what()};
+        }
+
+        if (error) {
+            int code = static_cast<int>(error->first);
+            log::debug(
+                    cat,
+                    "Replying with {}subscribe error code {}: {}",
+                    subscribe ? "" : "un",
+                    code,
+                    error->second);
+            sub_json_set_one_response(
+                    m.send_later(),
+                    *response,
+                    i,
+                    *remaining,
+                    multi,
+                    nlohmann::json{{"error", code}, {"message", error->second}});
+        }
+        // Otherwise the reply is getting deferred and handled later in on_notifier_validation
+    }
+}
+
+void HiveMind::on_subscribe(oxenmq::Message& m) {
+    on_sub_unsub_impl(m, true);
 }
 
 void HiveMind::on_unsubscribe(oxenmq::Message& m) {
-    ready_or_defer();
-
-    // If these are set at the end we send them in reply.
-    std::optional<std::pair<hive::SUBSCRIBE, std::string>> error;
-
-    try {
-        auto args = nlohmann::json::parse(m.data.at(0));
-
-        auto [pubkey, subkey_tag, sig_ts, sig, service, service_info] = sub_unsub_args(args);
-
-        auto conn = sub_unsub_service_conn(service);
-
-        auto reply_handler = [this,
-                              service = service,
-                              pubkey = pubkey,
-                              unsub = UnsubData{std::move(sig), std::move(subkey_tag), sig_ts},
-                              replier = m.send_later()](
-                                     bool success, std::vector<std::string> data) mutable {
-            on_notifier_validation(
-                    success,
-                    std::move(replier),
-                    std::move(service),
-                    std::move(pubkey),
-                    nullptr,
-                    std::nullopt,
-                    std::move(data),
-                    std::move(unsub));
-        };
-
-        omq_.request(
-                conn, "notifier.validate", std::move(reply_handler), service, service_info.dump());
-
-    } catch (const nlohmann::json::exception&) {
-        log::debug(cat, "Unsubscription failed: bad json");
-        error = {hive::SUBSCRIBE::BAD_INPUT, "Invalid JSON"};
-    } catch (const std::out_of_range& e) {
-        log::debug(cat, "Unsub failed: missing param {}", e.what());
-        error = {hive::SUBSCRIBE::BAD_INPUT, "Missing required parameter"};
-    } catch (const hive::subscribe_error& e) {
-        error = {e.code, e.what()};
-    } catch (const std::exception& e) {
-        log::debug(cat, "Exception handling input: {}", e.what());
-        error = {hive::SUBSCRIBE::ERROR, e.what()};
-    }
-
-    if (error) {
-        int code = static_cast<int>(error->first);
-        log::debug(cat, "Replying with error code {}: {}", code, error->second);
-        m.send_reply(nlohmann::json{{"error", code}, {"message", error->second}}.dump());
-    }
-    // Otherwise the reply is getting deferred and handled later in on_notifier_validation
+    on_sub_unsub_impl(m, false);
 }
 
 void HiveMind::db_cleanup() {
@@ -1484,15 +1577,17 @@ void HiveMind::load_saved_subscriptions() {
     log::info(cat, "Loading {} stored subscriptions from database", total);
 
     int64_t count = 0, unique = 0;
-    for (auto [acc, ed, tag, sig, sigts, wd, ns_arr] : txn
-                                                               .stream<AccountID,
-                                                                       std::optional<Ed25519PK>,
-                                                                       std::optional<SubkeyTag>,
-                                                                       Signature,
-                                                                       int64_t,
-                                                                       bool,
-                                                                       Int16ArrayLoader>(R"(
-SELECT account, session_ed25519, subkey_tag, signature, signature_ts, want_data,
+    for (auto [acc, ed, sub_tag, sub_sig, sig, sigts, wd, ns_arr] :
+         txn
+                 .stream<AccountID,
+                         std::optional<Ed25519PK>,
+                         std::optional<SubaccountTag>,
+                         std::optional<Signature>,
+                         Signature,
+                         int64_t,
+                         bool,
+                         Int16ArrayLoader>(R"(
+SELECT account, session_ed25519, subaccount_tag, subaccount_sig, signature, signature_ts, want_data,
     ARRAY(SELECT namespace FROM sub_namespaces WHERE subscription = id ORDER BY namespace)
 FROM subscriptions)")) {
         auto [it, ins] = subscribers_.emplace(
@@ -1500,12 +1595,19 @@ FROM subscriptions)")) {
                 std::forward_as_tuple(std::move(acc), std::move(ed), /*_skip_validation=*/true),
                 std::forward_as_tuple());
 
+        std::optional<Subaccount> subaccount;
+        if (sub_tag && sub_sig) {
+            subaccount.emplace();
+            subaccount->tag = std::move(*sub_tag);
+            subaccount->sig = std::move(*sub_sig);
+        }
+
         // Weed out potential duplicates: if two+ devices are subscribed to the same
         // account with all the same relevant subscription settings then we can just
         // keep whichever one is newer.
         bool dupe = false;
         for (auto& existing : it->second) {
-            if (existing.is_same(tag, ns_arr.a, wd)) {
+            if (existing.is_same(subaccount, ns_arr.a, wd)) {
                 if (sigts > existing.sig_ts) {
                     existing.sig_ts = sigts;
                     existing.sig = std::move(sig);
@@ -1519,7 +1621,7 @@ FROM subscriptions)")) {
             unique++;
             it->second.emplace_back(
                     it->first,
-                    std::move(tag),
+                    std::move(subaccount),
                     std::move(ns_arr.a),
                     wd,
                     sigts,
@@ -1544,31 +1646,6 @@ FROM subscriptions)")) {
             subscribers_.size());
 }
 
-/// Add or updates a subscription for monitoring.  If the given pubkey is already
-/// monitored by the same given subkey (if applicable) and same namespace/data
-/// values then this replaces the existing subscription, otherwise it adds a new
-/// subscription.
-///
-/// Will throw if the given data or signatures are incorrect.
-///
-/// Returns true if the subscription was brand new, false if the subscription
-/// updated/renewed an existing subscription.
-///
-/// Parameters:
-///
-/// - pubkey -- the account to monitor
-/// - service -- the subscription service name, e.g. 'apns', 'firebase'.  When
-/// messages are
-///   received the notification will be forwarded to the given service, if active.
-/// - service_id -- an identifier string that identifies the device/application/etc.
-/// This must
-///   be unique for a given service and pubkey (if all three match, an existing
-///   subscription will be replaced).
-/// - service_data -- service data; this will be passed as-is to the service handler
-///   and contains any extra data (beyond just the service_id) needed for the
-///   service handler to send the notification to the device.
-/// - enc_key this user's 32-byte encryption key for pushed notifications
-/// - sub -- the subscription to add
 bool HiveMind::add_subscription(
         SwarmPubkey pubkey,
         std::string service,
@@ -1582,11 +1659,10 @@ bool HiveMind::add_subscription(
     auto conn = pool_.get();
     pqxx::work tx{conn};
 
-    auto result = tx.query01<int64_t, std::optional<SubkeyTag>, int64_t, Int16ArrayLoader>(
+    auto result = tx.query01<int64_t, int64_t, Int16ArrayLoader>(
             R"(
 SELECT
     id,
-    subkey_tag,
     signature_ts,
     ARRAY(SELECT namespace FROM sub_namespaces WHERE subscription = id ORDER BY namespace)
 FROM subscriptions
@@ -1595,7 +1671,7 @@ WHERE
                     tx.quote(pubkey.id), tx.quote(service), tx.quote(service_id)));
     int64_t id;
     if (result) {
-        auto& [row_id, subkey_tag, sig_ts, ns_arr] = *result;
+        auto& [row_id, sig_ts, ns_arr] = *result;
         id = row_id;
 
         insert_ns = ns_arr.a != sub.namespaces;
@@ -1603,12 +1679,13 @@ WHERE
         tx.exec_params0(
                 R"(
 UPDATE subscriptions
-SET session_ed25519 = $2, subkey_tag = $3, signature = $4, signature_ts = $5, want_data = $6, enc_key = $7, svcdata = $8
+SET session_ed25519 = $2, subaccount_tag = $3, subaccount_sig = $4, signature = $5, signature_ts = $6, want_data = $7, enc_key = $8, svcdata = $9
 WHERE id = $1
                     )",
                 id,
                 pubkey.session_ed ? std::optional{pubkey.ed25519} : std::nullopt,
-                sub.subkey_tag,
+                sub.subaccount ? std::optional{sub.subaccount->tag} : std::nullopt,
+                sub.subaccount ? std::optional{sub.subaccount->sig} : std::nullopt,
                 sub.sig,
                 sub.sig_ts,
                 sub.want_data,
@@ -1622,13 +1699,14 @@ WHERE id = $1
         auto row = tx.exec_params1(
                 R"(
 INSERT INTO subscriptions
-    (account, session_ed25519, subkey_tag, signature, signature_ts, want_data, enc_key, service, svcid, svcdata)
-VALUES ($1,   $2,              $3,         $4,        $5,           $6,        $7,      $8,      $9,    $10)
+    (account, session_ed25519, subaccount_tag, subaccount_sig, signature, signature_ts, want_data, enc_key, service, svcid, svcdata)
+VALUES ($1,   $2,              $3,             $4,             $5,        $6,           $7,        $8,      $9,      $10,   $11)
 RETURNING id
                 )",
                 pubkey.id,
                 pubkey.session_ed ? std::optional{pubkey.ed25519} : std::nullopt,
-                sub.subkey_tag,
+                sub.subaccount ? std::optional{sub.subaccount->tag} : std::nullopt,
+                sub.subaccount ? std::optional{sub.subaccount->sig} : std::nullopt,
                 sub.sig,
                 sub.sig_ts,
                 sub.want_data,
@@ -1691,8 +1769,7 @@ RETURNING id
 /// Parameters:
 ///
 /// - pubkey -- the account
-/// - subkey_tag -- if using subkey authentication then this is the 32-byte subkey
-/// tag.
+/// - subaccount -- if using subaccount authentication then this is the 36-byte subaccount tag.
 /// - service -- the subscription service name, e.g. 'apns', 'firebase'.
 /// - service_id -- an identifier string that identifies the device/application/etc.
 /// This is
@@ -1703,7 +1780,7 @@ RETURNING id
 /// - signature -- the Ed25519 signature of: UNSUBSCRIBE || PUBKEY_HEX || sig_ts
 bool HiveMind::remove_subscription(
         const SwarmPubkey& pubkey,
-        const std::optional<SubkeyTag>& subkey_tag,
+        const std::optional<Subaccount>& subaccount,
         std::string service,
         std::string service_id,
         const Signature& sig,
@@ -1719,7 +1796,7 @@ bool HiveMind::remove_subscription(
     fmt::format_to(std::back_inserter(sig_msg), "{}", sig_ts);
 
     // Throws on verification failure
-    hive::verify_storage_signature(sig_msg, sig, pubkey.ed25519, subkey_tag);
+    hive::verify_storage_signature(sig_msg, sig, pubkey, subaccount);
 
     bool removed = false;
 

@@ -9,33 +9,53 @@
 
 namespace spns::hive {
 
-void verify_signature(std::string_view sig_msg, const Signature& sig, const Ed25519PK& pubkey) {
+void verify_signature(std::string_view sig_msg, const Signature& sig, const Ed25519PK& pubkey, std::string_view descr) {
     if (0 != crypto_sign_verify_detached(sig, as_usv(sig_msg).data(), sig_msg.size(), pubkey))
-        throw signature_verify_failure{"Signature verification failed"};
+        throw signature_verify_failure{std::string{descr} + " verification failed"};
+}
+
+namespace {
+    constexpr std::byte SUBACC_FLAG_READ{0b0001};
+    constexpr std::byte SUBACC_FLAG_ANY_PREFIX{0b1000};
 }
 
 /// Throws signature_verify_failure on signature failure.
 void verify_storage_signature(
         std::string_view sig_msg,
         const Signature& sig,
-        const Ed25519PK& pubkey,
-        const std::optional<SubkeyTag>& subkey_tag) {
+        const SwarmPubkey& pubkey,
+        const std::optional<Subaccount>& subaccount) {
 
-    if (subkey_tag) {
-        // H(c || A, key="OxenSSSubkey")
-        auto verify_pubkey = blake2b_keyed<Ed25519PK>(subkey_tag_hash_key, *subkey_tag, pubkey);
+    if (subaccount) {
+        // Parse the subaccount tag:
+        // prefix aka netid (05 for session ids, 03 for groups):
+        auto prefix = subaccount->tag[0];
+        // read/write/etc. flags:
+        auto flags = subaccount->tag[1];
 
-        // c + H(...)
-        crypto_core_ed25519_scalar_add(verify_pubkey, *subkey_tag, verify_pubkey);
+        // If you don't have the read bit we can't help you:
+        if ((flags & SUBACC_FLAG_READ) == std::byte{0})
+            throw signature_verify_failure{"Invalid subaccount: this subaccount does not have read permission"};
 
-        // (c + H(...)) A
-        if (0 != crypto_scalarmult_ed25519_noclamp(verify_pubkey, verify_pubkey, pubkey))
-            throw signature_verify_failure{"Failed to compute subkey: scalarmult failed"};
+        // Unless the subaccount has the "any prefix" flag, check that the prefix matches the
+        // account prefix:
+        if ((flags & SUBACC_FLAG_ANY_PREFIX) == std::byte{0} &&
+                prefix != pubkey.id[0])
+            throw signature_verify_failure{"Invalid subaccount: subaccount and main account have mismatched network prefix"};
 
-        verify_signature(sig_msg, sig, verify_pubkey);
+        // Verify that the main account has signed the subaccount tag:
+        verify_signature(subaccount->tag.sv(), subaccount->sig, pubkey.ed25519, "Subaccount auth signature");
+
+        // the subaccount pubkey (starts at [4]; [2] and [3] are future use/null padding):
+        Ed25519PK sub_pk;
+        std::memcpy(sub_pk.data(), &subaccount->tag[4], 32);
+
+        // Verify that the subaccount pubkey signed this message (and thus is allowed, transitively,
+        // since the main account signed the subaccount):
+        verify_signature(sig_msg, sig, sub_pk, "Subaccount main signature");
 
     } else {
-        verify_signature(sig_msg, sig, pubkey);
+        verify_signature(sig_msg, sig, pubkey.ed25519);
     }
 }
 

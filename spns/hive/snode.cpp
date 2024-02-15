@@ -247,7 +247,7 @@ void SNode::check_subs(
                                        + 3 + 36  // 1:p and 33:... (also covers 1:P and 32:...)
                                        + 3 + 2   // 1:n and the le of the l...e list
                                        + 3 + 3   // 1:d and i1e (only if want_data)
-                                       + 3 + 35  // 1:S and 32:... (only if subkey)
+                                       + 3 + 67 + 3 + 39 // 1:S, 64:..., 1:T, 36:... (for subaccount auth)
                     ;
 
             // The biggest int expression we have is i-32768e; this is almost certainly overkill
@@ -263,15 +263,17 @@ void SNode::check_subs(
 
             // keys in ascii-sorted order!
             if (acct.session_ed)
-                dict.append("P", as_sv(acct.ed25519));
-            if (sub.subkey_tag)
-                dict.append("S", as_sv(*sub.subkey_tag));
+                dict.append("P", acct.ed25519.sv());
+            if (sub.subaccount) {
+                dict.append("S", sub.subaccount->sig.sv());
+                dict.append("T", sub.subaccount->tag.sv());
+            }
             if (sub.want_data)
                 dict.append("d", 1);
             dict.append_list("n").append(sub.namespaces.begin(), sub.namespaces.end());
             if (!acct.session_ed)
-                dict.append("p", as_sv(acct.id));
-            dict.append("s", as_sv(sub.sig));
+                dict.append("p", acct.id.sv());
+            dict.append("s", sub.sig.sv());
             dict.append("t", sub.sig_ts);
 
             // Resize away any extra buffer space we didn't fill

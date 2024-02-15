@@ -218,8 +218,12 @@ class HiveMind {
     std::chrono::steady_clock::time_point last_stats_logged = std::chrono::steady_clock::now() - 1h;
     void log_stats(std::string_view pre_cmd = "WATCHDOG=1"sv);
 
-    using UnsubData = std::tuple<Signature, std::optional<SubkeyTag>, int64_t>;
+    using UnsubData = std::tuple<Signature, std::optional<Subaccount>, int64_t>;
     void on_notifier_validation(
+            nlohmann::json& final_response,
+            size_t i,
+            std::atomic<int>& remaining,
+            bool multi,
             bool success,
             oxenmq::Message::DeferredSend replier,
             std::string service,
@@ -231,7 +235,7 @@ class HiveMind {
 
     std::tuple<
             SwarmPubkey,
-            std::optional<SubkeyTag>,
+            std::optional<Subaccount>,
             int64_t,
             Signature,
             std::string,
@@ -241,8 +245,8 @@ class HiveMind {
     oxenmq::ConnectionID sub_unsub_service_conn(const std::string& service);
 
     void on_subscribe(oxenmq::Message& m);
-
     void on_unsubscribe(oxenmq::Message& m);
+    void on_sub_unsub_impl(oxenmq::Message& m, bool subscribe);
 
     void db_cleanup();
 
@@ -273,10 +277,9 @@ class HiveMind {
 
     void load_saved_subscriptions();
 
-    /// Add or updates a subscription for monitoring.  If the given pubkey is already
-    /// monitored by the same given subkey (if applicable) and same namespace/data
-    /// values then this replaces the existing subscription, otherwise it adds a new
-    /// subscription.
+    /// Add or updates a subscription for monitoring.  If the given pubkey is already monitored by
+    /// the same device then this replaces the existing subscription details with this one,
+    /// otherwise it adds a new subscription.
     ///
     /// Will throw if the given data or signatures are incorrect.
     ///
@@ -314,19 +317,20 @@ class HiveMind {
     /// Parameters:
     ///
     /// - pubkey -- the account
-    /// - subkey_tag -- if using subkey authentication then this is the 32-byte subkey
-    /// tag.
+    /// - subaccount -- if using subaccount authentication then this is the 36-byte subaccount tag.
+    /// - subaccount_sig -- if `subaccount` is given then this must be given and contains the
+    ///   account owner's signature of `subaccount` authorizing it.
     /// - service -- the subscription service name, e.g. 'apns', 'firebase'.
-    /// - service_id -- an identifier string that identifies the device/application/etc.
-    /// This is
-    ///   unique for a given service and pubkey and is generated/extracted by the
-    ///   notification service.
-    /// - sig_ts -- the integer unix timestamp when the signature was generated; must be
-    /// within ±24h
-    /// - signature -- the Ed25519 signature of: UNSUBSCRIBE || PUBKEY_HEX || sig_ts
+    /// - service_id -- an identifier string that identifies the device/application/etc.  This is
+    ///   unique for a given service and pubkey and is generated/extracted by the notification
+    ///   service.
+    /// - sig_ts -- the integer unix timestamp when the signature was generated; must be within ±24h
+    /// - signature -- the Ed25519 signature of: UNSUBSCRIBE || PUBKEY_HEX || sig_ts; this is signed
+    ///   by pubkey, unless using subaccounts in which case it's signed by the subaccount ed25519
+    ///   key contained in `subaccount`.
     bool remove_subscription(
             const SwarmPubkey& pubkey,
-            const std::optional<SubkeyTag>& subkey_tag,
+            const std::optional<Subaccount>& subaccount,
             std::string service,
             std::string service_id,
             const Signature& sig,
