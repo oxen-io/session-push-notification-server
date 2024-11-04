@@ -1,4 +1,3 @@
-# Session Push Notification Server
+# Repository Deprecated
 
-This project is now maintained by the Session Foundation at
-https://github.com/session-foundation/session-push-notification-server.
+## This repository is now deprecated. However, The Session Push Notification Server is still actively developed [here](https://github.com/session-foundation/session-push-notification-server). This is in line with announcements from [Session](https://getsession.org/blog/introducing-the-session-technology-foundation) and the [OPTF](https://optf.ngo/blog/the-optf-and-session), indicating that the OPTF has handed over the stewardship of the Session Project to the [Session Technology Foundation](https://session.foundation), a Swiss-based foundation dedicated to advancing digital rights and innovation.
